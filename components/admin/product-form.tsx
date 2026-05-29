@@ -31,6 +31,7 @@ export function ProductForm({
   const [images, setImages] = useState((product?.images ?? []).map((image) => image.url).join("\n"));
   const [variantsJson, setVariantsJson] = useState(() => JSON.stringify(toEditableVariants(product?.variants), null, 2));
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const parsedPreview = useMemo(() => {
     try {
       const parsed = JSON.parse(variantsJson) as ProductVariant[];
@@ -45,6 +46,7 @@ export function ProductForm({
       return;
     }
     setUploading(true);
+    setUploadError(null);
     try {
       const data = new FormData();
       data.set("file", file);
@@ -60,7 +62,7 @@ export function ProductForm({
       setMainImageUrl((current) => current || uploadedUrl);
       setImages((current) => [current, uploadedUrl].filter(Boolean).join("\n"));
     } catch (error) {
-      alert(error instanceof Error ? error.message : "上传失败");
+      setUploadError(error instanceof Error ? error.message : "上传失败");
     } finally {
       setUploading(false);
     }
@@ -120,6 +122,7 @@ export function ProductForm({
               type="file"
             />
           </span>
+          {uploadError ? <span className="text-xs font-normal text-red-600">{uploadError}</span> : null}
         </label>
       </div>
       <Field label="轮播图片 URL">

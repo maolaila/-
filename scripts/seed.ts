@@ -9,9 +9,22 @@ if (!databaseUrl) {
   throw new Error("DATABASE_URL or DIRECT_DATABASE_URL is required.");
 }
 
-const pepper = process.env.PASSWORD_PEPPER ?? "dev-password-pepper";
+const isProduction = process.env.NODE_ENV === "production";
+const pepper = process.env.PASSWORD_PEPPER ?? (isProduction ? "" : "dev-password-pepper");
 const adminUsername = process.env.SEED_ADMIN_USERNAME ?? "admin";
-const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "admin123456";
+const allowInsecureSeedDefaults = process.env.ALLOW_INSECURE_SEED_DEFAULTS === "true";
+const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? (allowInsecureSeedDefaults ? "admin123456" : "");
+const seedDemoData = process.env.SEED_DEMO_DATA === "true";
+
+if (pepper.length < 16) {
+  throw new Error("PASSWORD_PEPPER must be set to at least 16 characters before seeding.");
+}
+
+if (!adminPassword || (!allowInsecureSeedDefaults && adminPassword === "admin123456")) {
+  throw new Error(
+    "SEED_ADMIN_PASSWORD must be set to a strong non-default value before seeding. For local demos only, set ALLOW_INSECURE_SEED_DEFAULTS=true."
+  );
+}
 const sql = postgres(databaseUrl, { max: 1, prepare: false });
 
 const image = (id: string) =>
@@ -30,13 +43,6 @@ async function main() {
     on conflict (normalized_username) do nothing
   `;
 
-  const customerHash = await hashPassword("customer123");
-  await sql`
-    insert into users (username, normalized_username, password_hash, role, status)
-    values ('customer', 'customer', ${customerHash}, 'customer', 'active')
-    on conflict (normalized_username) do nothing
-  `;
-
   await sql`
     insert into site_settings (key, value)
     values (
@@ -52,6 +58,18 @@ async function main() {
       })}
     )
     on conflict (key) do update set value = excluded.value, updated_at = now()
+  `;
+
+  if (!seedDemoData) {
+    console.log("seed complete: admin and site settings only");
+    return;
+  }
+
+  const customerHash = await hashPassword("customer123");
+  await sql`
+    insert into users (username, normalized_username, password_hash, role, status)
+    values ('customer', 'customer', ${customerHash}, 'customer', 'active')
+    on conflict (normalized_username) do nothing
   `;
 
   const categoryRows = await sql<{ id: string; slug: string }[]>`
@@ -147,16 +165,17 @@ async function main() {
       returning id
     `;
 
+    const variantSku = `${product.sku}-DEFAULT`;
+    await sql`delete from product_variants where product_id = ${row.id} and sku = ${variantSku}`;
     await sql`
       insert into product_variants (product_id, sku, option_values, price, stock, status)
-      values (${row.id}, ${`${product.sku}-DEFAULT`}, ${sql.json(product.optionValues)}, ${product.price}, ${product.stock}, 'active')
-      on conflict do nothing
+      values (${row.id}, ${variantSku}, ${sql.json(product.optionValues)}, ${product.price}, ${product.stock}, 'active')
     `;
 
+    await sql`delete from product_images where product_id = ${row.id} and url = ${product.mainImageUrl}`;
     await sql`
       insert into product_images (product_id, url, sort_order)
       values (${row.id}, ${product.mainImageUrl}, 10)
-      on conflict do nothing
     `;
   }
 

@@ -94,7 +94,6 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   `;
 
   if (rows.length === 0) {
-    cookieStore.delete(SESSION_COOKIE);
     return null;
   }
 

@@ -1,4 +1,5 @@
 import { Ban, CheckCircle2 } from "lucide-react";
+import Link from "next/link";
 
 import { setCustomerStatusAction } from "@/app/admin/actions";
 import { ResetPasswordForm } from "@/components/admin/reset-password-form";
@@ -55,6 +56,12 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: S
                 <td className="px-4 py-3">
                   <div className="grid gap-2">
                     <div className="flex gap-2">
+                      <Link
+                        className="inline-flex h-9 items-center rounded-md border border-line bg-white px-3 text-sm font-medium hover:bg-slate-50"
+                        href={`/admin/orders?q=${encodeURIComponent(user.username)}`}
+                      >
+                        订单
+                      </Link>
                       <form action={setCustomerStatusAction}>
                         <input type="hidden" name="id" value={user.id} />
                         <input type="hidden" name="status" value={user.status === "active" ? "disabled" : "active"} />

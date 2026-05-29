@@ -24,13 +24,13 @@ NEXT_PUBLIC_APP_URL=
 pnpm db:migrate
 ```
 
-5. 创建初始管理员和演示数据：
+5. 创建初始管理员和站点配置：
 
 ```bash
 SEED_ADMIN_USERNAME=admin SEED_ADMIN_PASSWORD=your-strong-password pnpm db:seed
 ```
 
-生产环境必须使用高强度 `SESSION_SECRET`、`PASSWORD_PEPPER` 和管理员密码。
+生产环境必须使用高强度 `SESSION_SECRET`、`PASSWORD_PEPPER` 和管理员密码。生产环境默认不会创建演示顾客和演示商品；如要导入演示数据，显式增加 `SEED_DEMO_DATA=true`。
 
 ## 2. Vercel
 

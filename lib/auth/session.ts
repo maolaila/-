@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 
 import { SESSION_TTL_SECONDS } from "@/lib/auth/constants";
+import { requiredSecret } from "@/lib/env";
 
 export { SESSION_COOKIE, SESSION_TTL_SECONDS } from "@/lib/auth/constants";
 
@@ -9,7 +10,7 @@ export function createSessionToken() {
 }
 
 export function hashSessionToken(token: string) {
-  const secret = process.env.SESSION_SECRET ?? "dev-session-secret";
+  const secret = requiredSecret("SESSION_SECRET", "dev-session-secret", 32);
   return crypto.createHash("sha256").update(`${token}.${secret}`).digest("hex");
 }
 

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { AddToCartForm } from "@/components/store/add-to-cart-form";
+import { sanitizeRichText } from "@/lib/sanitize";
 import { formatMoney } from "@/lib/utils";
 import { getProductBySlug } from "@/server/services/catalog";
 import { getSiteSettings } from "@/server/services/settings";
@@ -77,7 +78,7 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
       <section className="mt-8 grid gap-6 lg:grid-cols-[1fr_0.4fr]">
         <div className="rounded-md border border-line bg-white p-6">
           <h2 className="mb-4 text-lg font-semibold">商品详情</h2>
-          <div className="prose-lite text-sm leading-7 text-ink" dangerouslySetInnerHTML={{ __html: product.description || "<p>暂无详情。</p>" }} />
+          <div className="prose-lite text-sm leading-7 text-ink" dangerouslySetInnerHTML={{ __html: sanitizeRichText(product.description) || "<p>暂无详情。</p>" }} />
         </div>
         <div className="rounded-md border border-line bg-white p-6">
           <h2 className="mb-4 text-lg font-semibold">购买说明</h2>

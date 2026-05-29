@@ -1,5 +1,7 @@
 import "server-only";
 
+import crypto from "node:crypto";
+
 import { getSql } from "@/db/client";
 import type { OrderStatus, PaymentStatus } from "@/db/schema";
 import { assertValidOrderTransition } from "@/lib/order/status";
@@ -77,7 +79,7 @@ function orderNo() {
     String(now.getMinutes()).padStart(2, "0"),
     String(now.getSeconds()).padStart(2, "0")
   ].join("");
-  return `LC${stamp}${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+  return `LC${stamp}${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
 }
 
 export async function createOrderFromCart(userId: string, input: unknown) {

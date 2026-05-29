@@ -18,7 +18,14 @@ export function jsonError(error: unknown) {
     return NextResponse.json({ error: error.message }, { status: error.status });
   }
   if (error instanceof Error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error: safeErrorMessage(error) }, { status: 400 });
   }
   return NextResponse.json({ error: "请求失败" }, { status: 500 });
+}
+
+function safeErrorMessage(error: Error) {
+  if (process.env.NODE_ENV !== "production" || /[\u4e00-\u9fff]/.test(error.message)) {
+    return error.message;
+  }
+  return "请求失败";
 }

@@ -31,6 +31,10 @@ function detectImage(buffer: Buffer): "jpg" | "png" | "webp" | null {
 }
 
 export async function uploadProductImage(file: File) {
+  if (process.env.NODE_ENV === "production" && process.env.STORAGE_DRIVER !== "supabase") {
+    throw new Error("生产环境必须配置 Supabase Storage 上传");
+  }
+
   if (file.size <= 0 || file.size > maxBytes) {
     throw new Error("图片大小必须大于 0 且不超过 5MB");
   }
