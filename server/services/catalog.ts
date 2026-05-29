@@ -453,12 +453,9 @@ export async function updateProduct(id: string, input: unknown) {
       if (keep.has(variant.id)) {
         continue;
       }
-      const used = await tx`
-        select id from cart_items where variant_id = ${variant.id} limit 1
-        union all
-        select id from order_items where variant_id = ${variant.id} limit 1
-      `;
-      if (used.length > 0) {
+      const usedInCart = await tx`select id from cart_items where variant_id = ${variant.id} limit 1`;
+      const usedInOrder = await tx`select id from order_items where variant_id = ${variant.id} limit 1`;
+      if (usedInCart.length > 0 || usedInOrder.length > 0) {
         await tx`update product_variants set status = 'inactive', updated_at = now() where id = ${variant.id}`;
       } else {
         await tx`delete from product_variants where id = ${variant.id}`;
