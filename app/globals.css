@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  background: #f6f8f7;
+  color: #172126;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f6f8f7;
+  color: #172126;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.prose-lite p {
+  margin: 0 0 0.85rem;
+}
+
+.prose-lite ul,
+.prose-lite ol {
+  margin: 0 0 0.85rem 1.25rem;
+}
+
+.prose-lite a {
+  color: #0f766e;
+  text-decoration: underline;
+}
