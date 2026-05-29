@@ -19,15 +19,15 @@ export default async function CartPage() {
   );
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
-      <div className="mb-6 flex items-end justify-between gap-4">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
+      <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <h1 className="text-2xl font-semibold">购物车</h1>
           <p className="mt-1 text-sm text-muted">提交订单前会再次校验库存、状态和价格。</p>
         </div>
         {items.length > 0 ? (
           <form action={clearCartAction}>
-            <Button type="submit" variant="secondary">
+            <Button className="w-full sm:w-auto" type="submit" variant="secondary">
               清空购物车
             </Button>
           </form>
@@ -49,11 +49,11 @@ export default async function CartPage() {
                       ? "库存不足"
                       : null;
               return (
-                <div className="grid gap-4 border-b border-line p-4 last:border-b-0 md:grid-cols-[96px_1fr_180px_80px]" key={item.id}>
+                <div className="grid grid-cols-[84px_1fr] gap-3 border-b border-line p-4 last:border-b-0 md:grid-cols-[96px_1fr_180px_80px] md:gap-4" key={item.id}>
                   <Link className="aspect-square overflow-hidden rounded-md bg-slate-100" href={`/products/${item.productSlug}`}>
                     <img alt={item.productName} className="h-full w-full object-cover" src={item.mainImageUrl} />
                   </Link>
-                  <div>
+                  <div className="min-w-0">
                     <Link className="font-semibold hover:text-brand" href={`/products/${item.productSlug}`}>
                       {item.productName}
                     </Link>
@@ -67,8 +67,10 @@ export default async function CartPage() {
                     <p className="mt-2 text-sm font-medium text-brand">{formatMoney(item.unitPrice, settings.currency)}</p>
                     {invalid ? <p className="mt-2 text-sm text-red-600">{invalid}</p> : null}
                   </div>
-                  <CartQuantityForm cartItemId={item.id} quantity={item.quantity} stock={item.stock} />
-                  <form action={removeCartItemAction}>
+                  <div className="col-span-2 md:col-span-1">
+                    <CartQuantityForm cartItemId={item.id} quantity={item.quantity} stock={item.stock} />
+                  </div>
+                  <form action={removeCartItemAction} className="col-span-2 md:col-span-1">
                     <input type="hidden" name="cartItemId" value={item.id} />
                     <Button className="h-9 px-3" type="submit" variant="danger" title="删除">
                       <Trash2 className="h-4 w-4" />

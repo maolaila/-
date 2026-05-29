@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 import "@/app/globals.css";
 
@@ -8,6 +8,11 @@ export const metadata: Metadata = {
     template: "%s | Light Commerce"
   },
   description: "轻量电商系统"
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

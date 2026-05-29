@@ -128,3 +128,19 @@ test("admin can update storefront settings and restore them", async ({ page }) =
   await page.getByRole("button", { name: "保存配置" }).click();
   await expect(page.getByText("站点配置已保存")).toBeVisible();
 });
+
+test("mobile storefront and admin layouts expose h5 navigation without page overflow", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  await page.goto("/");
+  await expect(page.getByRole("textbox", { name: "搜索商品" }).last()).toBeVisible();
+  await expect(page.getByRole("link", { name: "全部商品" }).last()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Light Commerce" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "浏览商品" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+
+  await loginAdmin(page);
+  await expect(page.getByRole("link", { name: "商品管理" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "数据概览" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});

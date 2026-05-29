@@ -35,7 +35,7 @@ export default async function AdminCategoriesPage() {
           </Button>
         </div>
       </form>
-      <section className="overflow-hidden rounded-md border border-line bg-white">
+      <section className="overflow-x-auto rounded-md border border-line bg-white">
         <table className="w-full min-w-[760px] text-left text-sm">
           <thead className="bg-wash text-muted">
             <tr>

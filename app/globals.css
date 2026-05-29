@@ -16,6 +16,7 @@ body {
   margin: 0;
   background: #f6f8f7;
   color: #172126;
+  overflow-x: hidden;
 }
 
 a {
@@ -28,6 +29,12 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+img,
+video,
+canvas {
+  max-width: 100%;
 }
 
 .prose-lite p {

@@ -12,7 +12,7 @@ export default async function OrdersPage() {
   const [orders, settings] = await Promise.all([getCustomerOrders(user.id), getSiteSettings()]);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">我的订单</h1>
         <p className="mt-1 text-sm text-muted">只能查看当前账号提交的订单。</p>
@@ -20,7 +20,26 @@ export default async function OrdersPage() {
       {orders.length === 0 ? (
         <EmptyState title="暂无订单" description="提交订单后会在这里显示处理状态。" />
       ) : (
-        <div className="overflow-hidden rounded-md border border-line bg-white">
+        <>
+        <div className="grid gap-3 md:hidden">
+          {orders.map((order) => (
+            <Link className="rounded-md border border-line bg-white p-4" href={`/orders/${order.orderNo}`} key={order.id}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{order.orderNo}</div>
+                  <div className="mt-1 text-xs text-muted">{formatDateTime(order.createdAt)}</div>
+                </div>
+                <div className="shrink-0 font-semibold text-brand">{formatMoney(order.totalAmount, settings.currency)}</div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <OrderStatusBadge status={order.status} />
+                <PaymentStatusBadge status={order.paymentStatus} />
+                <span className="rounded bg-wash px-2 py-1 text-xs text-muted">{order.itemCount} 件商品</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+        <div className="hidden overflow-x-auto rounded-md border border-line bg-white md:block">
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead className="bg-wash text-muted">
               <tr>
@@ -52,6 +71,7 @@ export default async function OrdersPage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );

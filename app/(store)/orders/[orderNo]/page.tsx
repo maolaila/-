@@ -17,7 +17,7 @@ export default async function OrderDetailPage({ params }: { params: Params }) {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">订单 {order.orderNo}</h1>
         <p className="mt-1 text-sm text-muted">下单时间：{formatDateTime(order.createdAt)}</p>
@@ -54,11 +54,11 @@ export default async function OrderDetailPage({ params }: { params: Params }) {
 
           <div className="overflow-hidden rounded-md border border-line bg-white">
             {order.items.map((item) => (
-              <div className="grid gap-4 border-b border-line p-4 last:border-b-0 md:grid-cols-[80px_1fr_120px]" key={item.id}>
+              <div className="grid grid-cols-[72px_1fr] gap-3 border-b border-line p-4 last:border-b-0 md:grid-cols-[80px_1fr_120px] md:gap-4" key={item.id}>
                 <div className="aspect-square overflow-hidden rounded-md bg-slate-100">
                   <img alt={item.productName} className="h-full w-full object-cover" src={item.productImageUrl} />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="font-medium">{item.productName}</div>
                   <div className="mt-1 text-sm text-muted">
                     {Object.entries(item.variantSnapshot)
@@ -69,7 +69,7 @@ export default async function OrderDetailPage({ params }: { params: Params }) {
                     {formatMoney(item.unitPrice, settings.currency)} × {item.quantity}
                   </div>
                 </div>
-                <div className="font-semibold">{formatMoney(item.subtotal, settings.currency)}</div>
+                <div className="col-span-2 font-semibold md:col-span-1">{formatMoney(item.subtotal, settings.currency)}</div>
               </div>
             ))}
           </div>

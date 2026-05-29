@@ -30,7 +30,7 @@ export default async function AdminDashboardPage() {
           </div>
         ))}
       </section>
-      <section className="overflow-hidden rounded-md border border-line bg-white">
+      <section className="overflow-x-auto rounded-md border border-line bg-white">
         <div className="border-b border-line px-4 py-3 font-semibold">最近订单</div>
         <table className="w-full min-w-[760px] text-left text-sm">
           <thead className="bg-wash text-muted">

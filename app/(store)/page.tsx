@@ -16,24 +16,24 @@ export default async function HomePage() {
   return (
     <div>
       <section className="bg-white">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 md:grid-cols-[1.05fr_0.95fr] md:items-center">
+        <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:py-12 md:grid-cols-[1.05fr_0.95fr] md:items-center">
           <div>
-            <p className="mb-3 inline-flex items-center gap-2 rounded-md bg-teal-50 px-3 py-2 text-sm font-medium text-brand">
-              <Megaphone className="h-4 w-4" />
+            <p className="mb-3 inline-flex max-w-full items-center gap-2 rounded-md bg-teal-50 px-3 py-2 text-sm font-medium text-brand">
+              <Megaphone className="h-4 w-4 shrink-0" />
               {settings.announcement}
             </p>
-            <h1 className="max-w-2xl text-4xl font-bold leading-tight tracking-normal text-ink md:text-5xl">
+            <h1 className="max-w-2xl text-3xl font-bold leading-tight tracking-normal text-ink sm:text-4xl md:text-5xl">
               {settings.storeName}
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-muted">
               轻量真实销售商城，支持现货、预订、人工确认付款和后台订单流转。
             </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <ButtonLink href="/products">
+            <div className="mt-6 grid gap-3 sm:flex sm:flex-wrap">
+              <ButtonLink className="w-full sm:w-auto" href="/products">
                 浏览商品
                 <ArrowRight className="h-4 w-4" />
               </ButtonLink>
-              <ButtonLink href="/register" variant="secondary">
+              <ButtonLink className="w-full sm:w-auto" href="/register" variant="secondary">
                 注册账号
               </ButtonLink>
             </div>

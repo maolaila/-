@@ -16,20 +16,20 @@ const links = [
 
 export function AdminShell({ user, children }: { user: CurrentUser; children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-wash lg:grid lg:grid-cols-[240px_1fr]">
-      <aside className="border-r border-line bg-white">
-        <div className="border-b border-line p-4">
+    <div className="min-h-screen bg-wash lg:grid lg:grid-cols-[240px_minmax(0,1fr)]">
+      <aside className="sticky top-0 z-30 border-b border-line bg-white lg:static lg:border-b-0 lg:border-r">
+        <div className="flex items-center justify-between gap-3 border-b border-line p-4 lg:block">
           <Link href="/admin" className="text-lg font-bold">
             Light Admin
           </Link>
-          <p className="mt-1 text-xs text-muted">{user.username}</p>
+          <p className="mt-1 shrink-0 text-xs text-muted">{user.username}</p>
         </div>
-        <nav className="grid gap-1 p-3">
+        <nav className="flex gap-2 overflow-x-auto p-3 lg:grid lg:gap-1">
           {links.map((item) => {
             const Icon = item.icon;
             return (
               <Link
-                className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted hover:bg-wash hover:text-ink"
+                className="flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm text-muted hover:bg-wash hover:text-ink lg:gap-3"
                 href={item.href}
                 key={item.href}
               >
@@ -40,7 +40,7 @@ export function AdminShell({ user, children }: { user: CurrentUser; children: Re
           })}
         </nav>
       </aside>
-      <div>
+      <div className="min-w-0">
         <header className="flex items-center justify-between border-b border-line bg-white px-4 py-3">
           <Link className="text-sm font-medium text-brand" href="/">
             返回前台
