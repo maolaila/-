@@ -18,7 +18,10 @@
     "test:round2": "pnpm build",
     "test:round3": "pnpm test:e2e",
     "db:migrate": "tsx scripts/migrate.ts",
-    "db:seed": "tsx scripts/seed.ts"
+    "db:seed": "tsx scripts/seed.ts",
+    "deploy:check": "tsx scripts/deploy-check.ts",
+    "deploy:init": "tsx scripts/deploy-check.ts --seed --db --storage && pnpm db:migrate && pnpm db:seed",
+    "deploy:verify": "pnpm deploy:check && pnpm audit --audit-level moderate --registry https://registry.npmjs.org && pnpm test:round1 && pnpm test:round2"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
