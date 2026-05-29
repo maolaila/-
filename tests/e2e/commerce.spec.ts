@@ -1,4 +1,12 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+async function loginAdmin(page: Page) {
+  await page.goto("/admin/login");
+  await page.getByLabel("账号").fill("admin");
+  await page.getByLabel("密码").fill("admin123456");
+  await page.getByRole("button", { name: "登录" }).click();
+  await expect(page.getByRole("heading", { name: "数据概览" })).toBeVisible();
+}
 
 test("guest can browse products and is prompted to login for cart", async ({ page }) => {
   await page.goto("/");
@@ -35,11 +43,7 @@ test("customer can register, add cart item and submit order", async ({ page }) =
 });
 
 test("admin can manage orders and customers", async ({ page }) => {
-  await page.goto("/admin/login");
-  await page.getByLabel("账号").fill("admin");
-  await page.getByLabel("密码").fill("admin123456");
-  await page.getByRole("button", { name: "登录" }).click();
-  await expect(page.getByRole("heading", { name: "数据概览" })).toBeVisible();
+  await loginAdmin(page);
 
   await page.getByRole("link", { name: "订单管理" }).click();
   await expect(page.getByRole("heading", { name: "订单管理" })).toBeVisible();
@@ -51,4 +55,76 @@ test("admin can manage orders and customers", async ({ page }) => {
   await page.getByRole("link", { name: "顾客管理" }).click();
   await expect(page.getByRole("heading", { name: "顾客管理" })).toBeVisible();
   await expect(page.getByText("customer").first()).toBeVisible();
+});
+
+test("admin can create a category and product that storefront search can find", async ({ page }) => {
+  const suffix = Date.now();
+  const categoryName = `自动测试分类 ${suffix}`;
+  const categorySlug = `auto-category-${suffix}`;
+  const productName = `自动测试商品 ${suffix}`;
+  const productSlug = `auto-product-${suffix}`;
+
+  await loginAdmin(page);
+
+  await page.goto("/admin/categories");
+  await page.getByLabel("分类名称").fill(categoryName);
+  await page.getByLabel("Slug").first().fill(categorySlug);
+  await page.getByRole("button", { name: "新增分类" }).click();
+  await expect(page.locator(`input[value="${categoryName}"]`)).toBeVisible();
+
+  await page.goto("/admin/products/new");
+  await page.getByLabel("商品名称").fill(productName);
+  await page.getByLabel("Slug").fill(productSlug);
+  await page.getByLabel("分类").selectOption({ label: categoryName });
+  await page.getByLabel("状态").selectOption("active");
+  await page.getByLabel("商品 SKU").fill(`AUTO-${suffix}`);
+  await page.getByLabel("标签").fill("现货, 自动测试");
+  await page.getByLabel("商品简介").fill("自动化创建商品，验证后台保存和前台搜索。");
+  await page.getByLabel("主图 URL").fill("https://images.unsplash.com/photo-1526406915894-7bcd65f60845?auto=format&fit=crop&w=1200&q=80");
+  await page.getByLabel("SEO 标题").fill(`${productName} - Light Commerce`);
+  await page.getByLabel("SEO 描述").fill("自动化测试商品 SEO 描述");
+  await page.getByLabel("商品详情").fill("<p>自动测试详情</p><script>alert('blocked')</script>");
+  await page.getByLabel("购买说明").fill("自动化测试购买说明");
+  await page.getByLabel(/规格 JSON/).fill(
+    JSON.stringify(
+      [
+        {
+          optionValues: { 颜色: "蓝色" },
+          price: 12.5,
+          stock: 3,
+          status: "active"
+        }
+      ],
+      null,
+      2
+    )
+  );
+  await page.getByRole("button", { name: "保存商品" }).click();
+  await expect(page.getByRole("heading", { name: "编辑商品" })).toBeVisible();
+  await expect(page.getByText(productName).first()).toBeVisible();
+
+  await page.goto(`/products?q=${encodeURIComponent(productName)}`);
+  await expect(page.getByText(productName).first()).toBeVisible();
+  await page.getByText(productName).first().click();
+  await expect(page).toHaveURL(new RegExp(`/products/${productSlug}$`));
+  await expect(page.getByText("自动测试详情")).toBeVisible();
+  await expect(page.locator("script", { hasText: "blocked" })).toHaveCount(0);
+});
+
+test("admin can update storefront settings and restore them", async ({ page }) => {
+  const storeName = `Light Commerce ${Date.now()}`;
+
+  await loginAdmin(page);
+  await page.goto("/admin/settings");
+  await page.getByLabel("店铺名称").fill(storeName);
+  await page.getByRole("button", { name: "保存配置" }).click();
+  await expect(page.getByText("站点配置已保存")).toBeVisible();
+
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: storeName })).toBeVisible();
+
+  await page.goto("/admin/settings");
+  await page.getByLabel("店铺名称").fill("Light Commerce");
+  await page.getByRole("button", { name: "保存配置" }).click();
+  await expect(page.getByText("站点配置已保存")).toBeVisible();
 });
