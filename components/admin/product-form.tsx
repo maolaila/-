@@ -9,6 +9,17 @@ import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { emptyActionState } from "@/lib/action-state";
 import type { CategoryRow, ProductDetail, ProductVariant } from "@/server/services/catalog";
 
+type UploadResult = {
+  url?: string;
+  detailUrl?: string;
+  thumbUrl?: string;
+  error?: string;
+  contentType?: string;
+  originalBytes?: number;
+  storedBytes?: number;
+  thumbBytes?: number;
+};
+
 const defaultVariant = [
   {
     optionValues: { 规格: "默认" },
@@ -30,9 +41,12 @@ export function ProductForm({
   const [mainImageUrl, setMainImageUrl] = useState(product?.mainImageUrl ?? "");
   const [images, setImages] = useState((product?.images ?? []).map((image) => image.url).join("\n"));
   const [variantsJson, setVariantsJson] = useState(() => JSON.stringify(toEditableVariants(product?.variants), null, 2));
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [uploadInfo, setUploadInfo] = useState<string | null>(null);
+  const [thumbnailUploading, setThumbnailUploading] = useState(false);
+  const [detailUploading, setDetailUploading] = useState(false);
+  const [thumbnailUploadError, setThumbnailUploadError] = useState<string | null>(null);
+  const [detailUploadError, setDetailUploadError] = useState<string | null>(null);
+  const [thumbnailUploadInfo, setThumbnailUploadInfo] = useState<string | null>(null);
+  const [detailUploadInfo, setDetailUploadInfo] = useState<string | null>(null);
   const [uploadedThumbs, setUploadedThumbs] = useState<Record<string, string>>({});
   const detailImageUrls = useMemo(() => parseImageUrls(images), [images]);
   const parsedPreview = useMemo(() => {
@@ -44,49 +58,83 @@ export function ProductForm({
     }
   }, [variantsJson]);
 
-  async function upload(file: File | null) {
+  async function uploadOne(file: File, usage: "thumbnail" | "detail") {
+    const data = new FormData();
+    data.set("file", file);
+    data.set("usage", usage);
+    const response = await fetch("/api/admin/uploads/product-image", {
+      method: "POST",
+      body: data
+    });
+    const body = (await response.json()) as UploadResult;
+    if (!response.ok || !body.url) {
+      throw new Error(body.error ?? "上传失败");
+    }
+    return body;
+  }
+
+  async function uploadThumbnail(file: File | null) {
     if (!file) {
       return;
     }
-    setUploading(true);
-    setUploadError(null);
-    setUploadInfo(null);
+    setThumbnailUploading(true);
+    setThumbnailUploadError(null);
+    setThumbnailUploadInfo(null);
     try {
-      const data = new FormData();
-      data.set("file", file);
-      const response = await fetch("/api/admin/uploads/product-image", {
-        method: "POST",
-        body: data
-      });
-      const body = (await response.json()) as {
-        url?: string;
-        detailUrl?: string;
-        thumbUrl?: string;
-        error?: string;
-        contentType?: string;
-        originalBytes?: number;
-        storedBytes?: number;
-        thumbBytes?: number;
-      };
-      if (!response.ok || !body.url) {
-        throw new Error(body.error ?? "上传失败");
-      }
-      const uploadedUrl = body.detailUrl ?? body.url;
-      const uploadedThumbUrl = body.thumbUrl;
-      setMainImageUrl((current) => current || uploadedThumbUrl || uploadedUrl);
-      setImages((current) => appendDetailImageUrl(current, uploadedUrl));
-      if (uploadedThumbUrl) {
-        setUploadedThumbs((current) => ({ ...current, [uploadedUrl]: uploadedThumbUrl }));
-      }
-      setUploadInfo(
+      const body = await uploadOne(file, "thumbnail");
+      setMainImageUrl(body.thumbUrl ?? body.detailUrl ?? body.url ?? "");
+      setThumbnailUploadInfo(
         body.contentType === "image/webp"
-          ? `已生成详情图和缩略图${body.originalBytes && body.storedBytes ? `：原图 ${formatBytes(body.originalBytes)}，详情图 ${formatBytes(body.storedBytes)}${body.thumbBytes ? `，缩略图 ${formatBytes(body.thumbBytes)}` : ""}` : ""}`
+          ? `缩略图已生成 WebP${body.thumbBytes ? `：${formatBytes(body.thumbBytes)}` : ""}`
           : "上传成功"
       );
     } catch (error) {
-      setUploadError(error instanceof Error ? error.message : "上传失败");
+      setThumbnailUploadError(error instanceof Error ? error.message : "上传失败");
     } finally {
-      setUploading(false);
+      setThumbnailUploading(false);
+    }
+  }
+
+  async function uploadDetailImages(files: FileList | null) {
+    const selectedFiles = Array.from(files ?? []);
+    if (selectedFiles.length === 0) {
+      return;
+    }
+    setDetailUploading(true);
+    setDetailUploadError(null);
+    setDetailUploadInfo(null);
+    try {
+      const uploaded: UploadResult[] = [];
+      for (const file of selectedFiles) {
+        uploaded.push(await uploadOne(file, "detail"));
+      }
+      const detailUrls = uploaded
+        .map((body) => body.detailUrl ?? body.url)
+        .filter((url): url is string => Boolean(url));
+      setImages((current) => appendDetailImageUrls(current, detailUrls));
+      setUploadedThumbs((current) => {
+        const next = { ...current };
+        for (const body of uploaded) {
+          const detailUrl = body.detailUrl ?? body.url;
+          if (detailUrl && body.thumbUrl) {
+            next[detailUrl] = body.thumbUrl;
+          }
+        }
+        return next;
+      });
+      const totalOriginalBytes = uploaded.reduce((sum, body) => sum + (body.originalBytes ?? 0), 0);
+      const totalStoredBytes = uploaded.reduce((sum, body) => sum + (body.storedBytes ?? 0), 0);
+      setDetailUploadInfo(
+        `已上传 ${uploaded.length} 张详情图并转成 WebP${
+          totalOriginalBytes > 0 && totalStoredBytes > 0
+            ? `：原图 ${formatBytes(totalOriginalBytes)}，详情图 ${formatBytes(totalStoredBytes)}`
+            : ""
+        }`
+      );
+    } catch (error) {
+      setDetailUploadError(error instanceof Error ? error.message : "上传失败");
+    } finally {
+      setDetailUploading(false);
     }
   }
 
@@ -132,20 +180,23 @@ export function ProductForm({
           <Input name="mainImageUrl" onChange={(event) => setMainImageUrl(event.target.value)} required value={mainImageUrl} />
         </Field>
         <label className="grid gap-2 text-sm font-medium">
-          上传商品图
+          上传列表缩略图
           <span className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-line bg-white px-3 text-sm hover:bg-slate-50">
             <Upload className="h-4 w-4" />
-            {uploading ? "上传中" : "选择图片"}
+            {thumbnailUploading ? "上传中" : "选择缩略图"}
             <input
               accept="image/png,image/jpeg,image/webp"
               className="sr-only"
-              disabled={uploading}
-              onChange={(event) => upload(event.target.files?.[0] ?? null)}
+              disabled={thumbnailUploading || detailUploading}
+              onChange={(event) => {
+                void uploadThumbnail(event.target.files?.[0] ?? null);
+                event.target.value = "";
+              }}
               type="file"
             />
           </span>
-          {uploadError ? <span className="text-xs font-normal text-red-600">{uploadError}</span> : null}
-          {uploadInfo ? <span className="text-xs font-normal text-emerald-700">{uploadInfo}</span> : null}
+          {thumbnailUploadError ? <span className="text-xs font-normal text-red-600">{thumbnailUploadError}</span> : null}
+          {thumbnailUploadInfo ? <span className="text-xs font-normal text-emerald-700">{thumbnailUploadInfo}</span> : null}
         </label>
       </div>
       {mainImageUrl ? (
@@ -158,9 +209,32 @@ export function ProductForm({
           </div>
         </div>
       ) : null}
-      <Field label="详情图片 URL（每行一个，不限数量）">
-        <Textarea name="images" onChange={(event) => setImages(event.target.value)} value={images} />
-      </Field>
+      <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
+        <Field label="详情图片 URL（每行一个，不限数量）">
+          <Textarea name="images" onChange={(event) => setImages(event.target.value)} value={images} />
+        </Field>
+        <label className="grid content-start gap-2 text-sm font-medium">
+          批量上传详情图
+          <span className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-line bg-white px-3 text-sm hover:bg-slate-50">
+            <Upload className="h-4 w-4" />
+            {detailUploading ? "上传中" : "选择详情图"}
+            <input
+              accept="image/png,image/jpeg,image/webp"
+              className="sr-only"
+              disabled={thumbnailUploading || detailUploading}
+              multiple
+              onChange={(event) => {
+                void uploadDetailImages(event.target.files);
+                event.target.value = "";
+              }}
+              type="file"
+            />
+          </span>
+          <span className="text-xs font-normal text-muted">可一次选择多张，也可以只选一张。</span>
+          {detailUploadError ? <span className="text-xs font-normal text-red-600">{detailUploadError}</span> : null}
+          {detailUploadInfo ? <span className="text-xs font-normal text-emerald-700">{detailUploadInfo}</span> : null}
+        </label>
+      </div>
       {detailImageUrls.length > 0 ? (
         <div className="grid gap-2">
           <div className="text-sm font-medium text-ink">详情图片预览</div>
@@ -241,8 +315,8 @@ function parseImageUrls(images: string) {
   );
 }
 
-function appendDetailImageUrl(images: string, url: string) {
-  return Array.from(new Set([...parseImageUrls(images), url])).join("\n");
+function appendDetailImageUrls(images: string, urls: string[]) {
+  return Array.from(new Set([...parseImageUrls(images), ...urls])).join("\n");
 }
 
 function formatBytes(bytes: number) {
@@ -262,26 +336,7 @@ function toGeneratedThumbnailUrl(url: string) {
   if (url.endsWith("-thumb.webp")) {
     return url;
   }
-
-  const pathname = getPathname(url);
-  if (!pathname) {
-    return null;
-  }
-  if (/^\/(?:uploads\/)?products\/\d{4}\/\d{2}\/[^/]+\.webp$/.test(pathname)) {
-    return url.replace(/\.webp$/, "-thumb.webp");
-  }
   return null;
-}
-
-function getPathname(url: string) {
-  if (url.startsWith("/")) {
-    return url;
-  }
-  try {
-    return new URL(url).pathname;
-  } catch {
-    return null;
-  }
 }
 
 function toEditableVariants(variants: ProductVariant[] | undefined) {

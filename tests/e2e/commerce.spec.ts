@@ -64,7 +64,9 @@ test("admin can manage orders and customers", async ({ page }) => {
 
 test("admin can create a category and product that storefront search can find", async ({ page }) => {
   const suffix = Date.now();
-  const uploadFile = test.info().outputPath(`product-${suffix}.png`);
+  const thumbnailFile = test.info().outputPath(`product-thumb-${suffix}.png`);
+  const detailFile1 = test.info().outputPath(`product-detail-1-${suffix}.png`);
+  const detailFile2 = test.info().outputPath(`product-detail-2-${suffix}.png`);
   const categoryName = `自动测试分类 ${suffix}`;
   const categorySlug = `auto-category-${suffix}`;
   const productName = `自动测试商品 ${suffix}`;
@@ -79,14 +81,20 @@ test("admin can create a category and product that storefront search can find", 
   await expect(page.locator(`input[value="${categoryName}"]`)).toBeVisible();
 
   await page.goto("/admin/products/new");
-  await expect(page.locator('input[type="file"]')).toBeEnabled();
+  await expect(page.locator('input[type="file"]').nth(0)).toBeEnabled();
+  await expect(page.locator('input[type="file"]').nth(1)).toBeEnabled();
   await page.waitForTimeout(300);
-  await fs.writeFile(uploadFile, Buffer.from(pngFixtureBase64, "base64"));
-  await page.locator('input[type="file"]').setInputFiles(uploadFile);
-  await expect(page.getByText(/已生成详情图和缩略图/)).toBeVisible();
+  await fs.writeFile(thumbnailFile, Buffer.from(pngFixtureBase64, "base64"));
+  await fs.writeFile(detailFile1, Buffer.from(pngFixtureBase64, "base64"));
+  await fs.writeFile(detailFile2, Buffer.from(pngFixtureBase64, "base64"));
+  await page.locator('input[type="file"]').nth(0).setInputFiles(thumbnailFile);
+  await expect(page.getByText(/缩略图已生成 WebP/)).toBeVisible();
   await expect(page.locator('img[src$="-thumb.webp"]').first()).toBeVisible();
   await expect(page.getByLabel("商品缩略图 URL")).toHaveValue(/-thumb\.webp$/);
-  await expect(page.getByLabel(/详情图片 URL/)).toHaveValue(/\/[^/]+\.webp$/);
+  await expect(page.getByLabel(/详情图片 URL/)).toHaveValue("");
+  await page.locator('input[type="file"]').nth(1).setInputFiles([detailFile1, detailFile2]);
+  await expect(page.getByText(/已上传 2 张详情图并转成 WebP/)).toBeVisible();
+  await expect(page.getByLabel(/详情图片 URL/)).toHaveValue(/\.webp\r?\n.*\.webp$/);
   await page.getByLabel("商品名称").fill(productName);
   await page.getByLabel("Slug").fill(productSlug);
   await page.getByLabel("分类").selectOption({ label: categoryName });

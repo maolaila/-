@@ -14,7 +14,11 @@ export async function POST(request: NextRequest) {
     if (!(file instanceof File)) {
       throw new Error("请选择图片文件");
     }
-    return jsonOk(await uploadProductImage(file), { status: 201 });
+    const usage = form.get("usage");
+    if (usage !== "thumbnail" && usage !== "detail") {
+      throw new Error("请选择图片用途");
+    }
+    return jsonOk(await uploadProductImage(file, usage), { status: 201 });
   } catch (error) {
     return jsonError(error);
   }

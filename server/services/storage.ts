@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { createClient } from "@supabase/supabase-js";
 import sharp from "sharp";
 import WebSocket from "ws";
@@ -15,6 +15,7 @@ const storageDrivers = ["local", "supabase", "r2"] as const;
 const webSocketTransport = WebSocket as unknown as typeof globalThis.WebSocket;
 
 type StorageDriver = (typeof storageDrivers)[number];
+type ProductImageUploadUsage = "thumbnail" | "detail";
 
 const signatures = {
   jpg: [[0xff, 0xd8, 0xff]],
@@ -89,7 +90,7 @@ async function toWebp(buffer: Buffer, options: { maxWidth: number; quality: numb
   }
 }
 
-export async function uploadProductImage(file: File) {
+export async function uploadProductImage(file: File, usage: ProductImageUploadUsage = "detail") {
   const storageDriver = getStorageDriver();
   if (process.env.NODE_ENV === "production" && storageDriver === "local") {
     throw new Error("生产环境必须配置 R2 或 Supabase Storage 上传");
@@ -105,17 +106,14 @@ export async function uploadProductImage(file: File) {
     throw new Error("仅支持 jpg、jpeg、png、webp 图片");
   }
 
-  const [mainBuffer, thumbBuffer] = await Promise.all([
-    toWebp(buffer, { maxWidth: 1200, quality: 80 }),
-    toWebp(buffer, { maxWidth: 400, quality: 75 })
-  ]);
+  const isThumbnail = usage === "thumbnail";
+  const webpBuffer = await toWebp(buffer, isThumbnail ? { maxWidth: 400, quality: 75 } : { maxWidth: 1200, quality: 80 });
   const assetId = crypto.randomUUID();
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const storageBasePath = `products/${year}/${month}`;
-  const detailStoragePath = `${storageBasePath}/${assetId}.webp`;
-  const thumbStoragePath = `${storageBasePath}/${assetId}-thumb.webp`;
+  const storagePath = `${storageBasePath}/${assetId}${isThumbnail ? "-thumb" : ""}.webp`;
 
   if (storageDriver === "r2") {
     const client = getR2Client();
@@ -125,40 +123,26 @@ export async function uploadProductImage(file: File) {
     await client.send(
       new PutObjectCommand({
         Bucket: bucket,
-        Key: detailStoragePath,
-        Body: mainBuffer,
+        Key: storagePath,
+        Body: webpBuffer,
         ContentType: "image/webp",
         CacheControl: imageCacheControl
       })
     );
 
-    try {
-      await client.send(
-        new PutObjectCommand({
-          Bucket: bucket,
-          Key: thumbStoragePath,
-          Body: thumbBuffer,
-          ContentType: "image/webp",
-          CacheControl: imageCacheControl
-        })
-      );
-    } catch (error) {
-      await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: detailStoragePath })).catch(() => undefined);
-      throw error;
-    }
-
+    const publicUrl = buildPublicUrl(publicBaseUrl, storagePath);
     return {
-      url: buildPublicUrl(publicBaseUrl, detailStoragePath),
-      detailUrl: buildPublicUrl(publicBaseUrl, detailStoragePath),
-      thumbUrl: buildPublicUrl(publicBaseUrl, thumbStoragePath),
-      storagePath: detailStoragePath,
-      detailStoragePath,
-      thumbStoragePath,
+      url: publicUrl,
+      detailUrl: isThumbnail ? undefined : publicUrl,
+      thumbUrl: isThumbnail ? publicUrl : undefined,
+      storagePath,
+      detailStoragePath: isThumbnail ? undefined : storagePath,
+      thumbStoragePath: isThumbnail ? storagePath : undefined,
       contentType: "image/webp",
       originalFormat: ext,
       originalBytes: buffer.length,
-      storedBytes: mainBuffer.length,
-      thumbBytes: thumbBuffer.length
+      storedBytes: isThumbnail ? undefined : webpBuffer.length,
+      thumbBytes: isThumbnail ? webpBuffer.length : undefined
     };
   }
 
@@ -174,61 +158,47 @@ export async function uploadProductImage(file: File) {
       auth: { persistSession: false },
       realtime: { transport: webSocketTransport }
     });
-    const { error: mainError } = await client.storage.from(bucket).upload(detailStoragePath, mainBuffer, {
+    const { error } = await client.storage.from(bucket).upload(storagePath, webpBuffer, {
       contentType: "image/webp",
       upsert: false
     });
-    if (mainError) {
-      throw new Error(mainError.message);
+    if (error) {
+      throw new Error(error.message);
     }
 
-    const { error: thumbError } = await client.storage.from(bucket).upload(thumbStoragePath, thumbBuffer, {
-      contentType: "image/webp",
-      upsert: false
-    });
-    if (thumbError) {
-      await client.storage.from(bucket).remove([detailStoragePath]).catch(() => undefined);
-      throw new Error(thumbError.message);
-    }
-
-    const { data: mainData } = client.storage.from(bucket).getPublicUrl(detailStoragePath);
-    const { data: thumbData } = client.storage.from(bucket).getPublicUrl(thumbStoragePath);
+    const { data } = client.storage.from(bucket).getPublicUrl(storagePath);
     return {
-      url: mainData.publicUrl,
-      detailUrl: mainData.publicUrl,
-      thumbUrl: thumbData.publicUrl,
-      storagePath: detailStoragePath,
-      detailStoragePath,
-      thumbStoragePath,
+      url: data.publicUrl,
+      detailUrl: isThumbnail ? undefined : data.publicUrl,
+      thumbUrl: isThumbnail ? data.publicUrl : undefined,
+      storagePath,
+      detailStoragePath: isThumbnail ? undefined : storagePath,
+      thumbStoragePath: isThumbnail ? storagePath : undefined,
       contentType: "image/webp",
       originalFormat: ext,
       originalBytes: buffer.length,
-      storedBytes: mainBuffer.length,
-      thumbBytes: thumbBuffer.length
+      storedBytes: isThumbnail ? undefined : webpBuffer.length,
+      thumbBytes: isThumbnail ? webpBuffer.length : undefined
     };
   }
 
   const targetDir = path.join(process.cwd(), "public", "uploads", "products", String(year), month);
   await fs.mkdir(targetDir, { recursive: true });
-  const detailTargetPath = path.join(targetDir, `${assetId}.webp`);
-  const thumbTargetPath = path.join(targetDir, `${assetId}-thumb.webp`);
-  await Promise.all([
-    fs.writeFile(detailTargetPath, mainBuffer),
-    fs.writeFile(thumbTargetPath, thumbBuffer)
-  ]);
+  const targetPath = path.join(targetDir, `${assetId}${isThumbnail ? "-thumb" : ""}.webp`);
+  await fs.writeFile(targetPath, webpBuffer);
   const publicBasePath = `/uploads/products/${year}/${month}`;
-  const detailUrl = `${publicBasePath}/${assetId}.webp`;
+  const publicUrl = `${publicBasePath}/${assetId}${isThumbnail ? "-thumb" : ""}.webp`;
   return {
-    url: detailUrl,
-    detailUrl,
-    thumbUrl: `${publicBasePath}/${assetId}-thumb.webp`,
-    storagePath: detailTargetPath,
-    detailStoragePath: detailTargetPath,
-    thumbStoragePath: thumbTargetPath,
+    url: publicUrl,
+    detailUrl: isThumbnail ? undefined : publicUrl,
+    thumbUrl: isThumbnail ? publicUrl : undefined,
+    storagePath: targetPath,
+    detailStoragePath: isThumbnail ? undefined : targetPath,
+    thumbStoragePath: isThumbnail ? targetPath : undefined,
     contentType: "image/webp",
     originalFormat: ext,
     originalBytes: buffer.length,
-    storedBytes: mainBuffer.length,
-    thumbBytes: thumbBuffer.length
+    storedBytes: isThumbnail ? undefined : webpBuffer.length,
+    thumbBytes: isThumbnail ? webpBuffer.length : undefined
   };
 }
