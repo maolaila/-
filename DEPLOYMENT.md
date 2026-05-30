@@ -6,7 +6,7 @@
 
 1. 创建 PostgreSQL 数据库。推荐继续用 Supabase Postgres，也可以用 Neon。
 2. 在 Cloudflare R2 创建 bucket：`product-images`。
-3. 给 R2 bucket 绑定生产自定义域名，例如 `https://img.your-domain.com`。不要用 `r2.dev` 做生产图片域名。
+3. 给 R2 bucket 绑定生产自定义域名：`https://img.xiaolu.jp`。不要用 `r2.dev` 做生产图片域名。
 4. 在 Cloudflare R2 创建 S3 API token，拿到 `Account ID`、`Access Key ID`、`Secret Access Key`。
 5. 复制生产环境变量模板：
 
@@ -39,7 +39,7 @@ ENV_FILE=.env.production pnpm deploy:init
 在 Vercel Project Settings -> Environment Variables 中配置：
 
 ```env
-NEXT_PUBLIC_APP_URL=https://your-production-domain.com
+NEXT_PUBLIC_APP_URL=https://xiaolu.jp
 SESSION_SECRET=replace-with-at-least-32-random-characters
 DATABASE_URL=postgres://...
 DIRECT_DATABASE_URL=postgres://...
@@ -49,12 +49,19 @@ R2_ACCOUNT_ID=replace-with-cloudflare-account-id
 R2_ACCESS_KEY_ID=replace-with-r2-access-key-id
 R2_SECRET_ACCESS_KEY=replace-with-r2-secret-access-key
 R2_BUCKET=product-images
-R2_PUBLIC_BASE_URL=https://img.your-production-domain.com
+R2_PUBLIC_BASE_URL=https://img.xiaolu.jp
 ```
 
 不要在 Vercel 手工设置 `NODE_ENV`。Vercel 会自动使用 production。
 
 `SEED_ADMIN_PASSWORD` 只用于初始化管理员，不需要长期保存在 Vercel 运行环境中。初始化时放在 `.env.production` 即可。
+
+## 域名规划
+
+- 主站域名：`https://xiaolu.jp`，绑定到 Vercel 项目。
+- 图片域名：`https://img.xiaolu.jp`，绑定到 Cloudflare R2 bucket。
+- 这两个域名只通过环境变量配置。代码里没有硬编码域名，后续如果改成 `www.xiaolu.jp` 或其他域名，只需要改 `NEXT_PUBLIC_APP_URL` 和 `R2_PUBLIC_BASE_URL`。
+- 域名还没生效前，可以先完成数据库、R2 bucket、R2 API token 和 Vercel 项目配置；等域名状态可用后再绑定 DNS 并执行 `pnpm deploy:init`。
 
 ## 数据库设置
 
@@ -66,7 +73,7 @@ R2_PUBLIC_BASE_URL=https://img.your-production-domain.com
 
 - `STORAGE_DRIVER=r2`。
 - `R2_BUCKET` 默认 `product-images`。
-- `R2_PUBLIC_BASE_URL` 必须是绑定到 R2 bucket 的生产自定义域名，例如 `https://img.your-domain.com`。
+- `R2_PUBLIC_BASE_URL` 必须是绑定到 R2 bucket 的生产自定义域名，本项目使用 `https://img.xiaolu.jp`。
 - `r2.dev` 只适合开发测试，生产不要使用。
 - `R2_ENDPOINT` 通常不需要设置，系统会用 `https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com`。
 - 商品图上传后不会保存原图，会在服务端转成两份唯一命名的 WebP：
