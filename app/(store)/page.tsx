@@ -55,7 +55,7 @@ export default async function HomePage() {
             <p className="mt-1 text-sm text-muted">按商品类型快速浏览。</p>
           </div>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {categories.map((category) => (
             <Link
               className="rounded-md border border-line bg-white p-4 transition hover:border-brand hover:shadow-soft"
@@ -79,7 +79,7 @@ export default async function HomePage() {
             查看全部
           </Link>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 xl:grid-cols-5">
           {products.featured.map((product) => (
             <ProductCard currency={settings.currency} key={product.id} product={product} />
           ))}
@@ -90,7 +90,7 @@ export default async function HomePage() {
         <div className="mb-5">
           <h2 className="text-xl font-semibold">最新商品</h2>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 xl:grid-cols-5">
           {products.latest.map((product) => (
             <ProductCard currency={settings.currency} key={product.id} product={product} />
           ))}

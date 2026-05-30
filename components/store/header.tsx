@@ -18,15 +18,16 @@ export async function StoreHeader() {
         <Link href="/" className="min-w-0 flex-1 text-base font-bold tracking-normal text-ink sm:text-lg md:flex-none">
           {settings.storeName}
         </Link>
-        <nav className="hidden items-center gap-1 md:flex">
-          <Link className="rounded-md px-3 py-2 text-sm text-muted hover:bg-wash hover:text-ink" href="/products">
+        <nav className="hidden min-w-0 items-center gap-1 md:flex">
+          <Link className="shrink-0 rounded-md px-3 py-2 text-sm text-muted hover:bg-wash hover:text-ink" href="/products">
             全部商品
           </Link>
-          {categories.slice(0, 5).map((category) => (
+          {categories.slice(0, 4).map((category) => (
             <Link
-              className="rounded-md px-3 py-2 text-sm text-muted hover:bg-wash hover:text-ink"
+              className="max-w-24 truncate rounded-md px-3 py-2 text-sm text-muted hover:bg-wash hover:text-ink"
               href={`/products?category=${category.slug}`}
               key={category.id}
+              title={category.name}
             >
               {category.name}
             </Link>
