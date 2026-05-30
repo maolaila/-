@@ -3,6 +3,7 @@ import "./load-env";
 import { HeadBucketCommand, S3Client } from "@aws-sdk/client-s3";
 import { createClient } from "@supabase/supabase-js";
 import postgres from "postgres";
+import WebSocket from "ws";
 
 const args = new Set(process.argv.slice(2));
 const requireSeed = args.has("--seed");
@@ -12,6 +13,7 @@ const checkStorage = args.has("--storage");
 const failures: string[] = [];
 const warnings: string[] = [];
 const productionStorageDrivers = ["r2", "supabase"];
+const webSocketTransport = WebSocket as unknown as typeof globalThis.WebSocket;
 
 function env(name: string) {
   return process.env[name]?.trim() ?? "";
@@ -200,7 +202,8 @@ async function validateSupabaseStorage() {
   }
 
   const client = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false }
+    auth: { persistSession: false },
+    realtime: { transport: webSocketTransport }
   });
   const { data, error } = await client.storage.getBucket(bucket);
   if (error) {

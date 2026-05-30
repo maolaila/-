@@ -7,10 +7,12 @@ import crypto from "node:crypto";
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { createClient } from "@supabase/supabase-js";
 import sharp from "sharp";
+import WebSocket from "ws";
 
 const maxBytes = 5 * 1024 * 1024;
 const imageCacheControl = "public, max-age=31536000, immutable";
 const storageDrivers = ["local", "supabase", "r2"] as const;
+const webSocketTransport = WebSocket as unknown as typeof globalThis.WebSocket;
 
 type StorageDriver = (typeof storageDrivers)[number];
 
@@ -169,7 +171,8 @@ export async function uploadProductImage(file: File) {
     }
 
     const client = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { persistSession: false }
+      auth: { persistSession: false },
+      realtime: { transport: webSocketTransport }
     });
     const { error: mainError } = await client.storage.from(bucket).upload(detailStoragePath, mainBuffer, {
       contentType: "image/webp",
