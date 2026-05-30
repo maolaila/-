@@ -1,9 +1,8 @@
-import { Search } from "lucide-react";
 import Link from "next/link";
 
+import { ProductFilterBar } from "@/components/store/product-filter-bar";
 import { ProductCard } from "@/components/store/product-card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Select } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
 import { getPublicProducts, getVisibleCategories } from "@/server/services/catalog";
 import { getSiteSettings } from "@/server/services/settings";
@@ -61,7 +60,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
         <div className="flex min-w-max gap-2">
           <Link
             className={cn(
-              "rounded-md border px-3 py-2 text-sm font-medium",
+              "rounded-md border px-3 py-2 text-sm font-medium transition active:scale-[0.98]",
               currentCategory ? "border-line bg-white text-muted" : "border-brand bg-teal-50 text-brand"
             )}
             href={productsHref(params, { category: "" })}
@@ -71,7 +70,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
           {categories.map((category) => (
             <Link
               className={cn(
-                "rounded-md border px-3 py-2 text-sm font-medium",
+                "rounded-md border px-3 py-2 text-sm font-medium transition active:scale-[0.98]",
                 currentCategory === category.slug ? "border-brand bg-teal-50 text-brand" : "border-line bg-white text-muted"
               )}
               href={productsHref(params, { category: category.slug })}
@@ -83,32 +82,14 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
         </div>
       </div>
 
-      <form className="mb-5 grid gap-2 rounded-md border border-line bg-white p-3 md:grid-cols-[minmax(220px,1fr)_150px_150px_auto] md:items-center">
-        <input name="category" type="hidden" value={currentCategory} />
-        <label className="flex h-10 min-w-0 items-center gap-2 rounded-md border border-line px-3">
-          <Search className="h-4 w-4 text-muted" />
-          <input
-            className="min-w-0 flex-1 outline-none"
-            defaultValue={value(params, "q") ?? ""}
-            maxLength={50}
-            name="q"
-            placeholder="商品名称或简介"
-          />
-        </label>
-        <Select defaultValue={value(params, "sort") ?? "newest"} name="sort">
-          <option value="newest">最新</option>
-          <option value="price_asc">价格升序</option>
-          <option value="price_desc">价格降序</option>
-        </Select>
-        <Select defaultValue={value(params, "stock") ?? "all"} name="stock">
-          <option value="all">全部库存</option>
-          <option value="in_stock">有货</option>
-          <option value="sold_out">售罄</option>
-        </Select>
-        <button className="h-10 rounded-md bg-brand px-4 text-sm font-medium text-white" type="submit">
-          筛选
-        </button>
-      </form>
+      <ProductFilterBar
+        values={{
+          category: currentCategory,
+          q: value(params, "q") ?? "",
+          sort: value(params, "sort") ?? "newest",
+          stock: value(params, "stock") ?? "all"
+        }}
+      />
 
       {products.length === 0 ? (
         <EmptyState title="没有找到商品" description="请更换分类或搜索词。" actionHref="/products" actionLabel="查看全部商品" />
