@@ -20,7 +20,17 @@ type UploadResult = {
   thumbBytes?: number;
 };
 
-const defaultVariant = [
+type EditableProductVariant = {
+  id?: string;
+  sku?: string | null;
+  optionValues: Record<string, string>;
+  price: number;
+  costPrice: number | null;
+  stock: number;
+  status: "active" | "inactive";
+};
+
+const defaultVariant: EditableProductVariant[] = [
   {
     optionValues: { 规格: "默认" },
     price: 0,
@@ -40,7 +50,14 @@ export function ProductForm({
   const [state, action, pending] = useActionState(product ? updateProductAction : createProductAction, emptyActionState);
   const [mainImageUrl, setMainImageUrl] = useState(product?.mainImageUrl ?? "");
   const [images, setImages] = useState((product?.images ?? []).map((image) => image.url).join("\n"));
-  const [variantsJson, setVariantsJson] = useState(() => JSON.stringify(toEditableVariants(product?.variants), null, 2));
+  const [variantBaseList] = useState(() => toEditableVariants(product?.variants));
+  const primaryVariantBase = variantBaseList[0] ?? defaultVariant[0];
+  const [price, setPrice] = useState(() => formatNumberInput(primaryVariantBase.price));
+  const [costPrice, setCostPrice] = useState(() =>
+    primaryVariantBase.costPrice == null ? "" : formatNumberInput(primaryVariantBase.costPrice)
+  );
+  const [stock, setStock] = useState(() => String(primaryVariantBase.stock));
+  const [variantStatus, setVariantStatus] = useState<"active" | "inactive">(primaryVariantBase.status);
   const [thumbnailUploading, setThumbnailUploading] = useState(false);
   const [detailUploading, setDetailUploading] = useState(false);
   const [thumbnailUploadError, setThumbnailUploadError] = useState<string | null>(null);
@@ -49,14 +66,20 @@ export function ProductForm({
   const [detailUploadInfo, setDetailUploadInfo] = useState<string | null>(null);
   const [uploadedThumbs, setUploadedThumbs] = useState<Record<string, string>>({});
   const detailImageUrls = useMemo(() => parseImageUrls(images), [images]);
-  const parsedPreview = useMemo(() => {
-    try {
-      const parsed = JSON.parse(variantsJson) as ProductVariant[];
-      return `${parsed.length} 个规格`;
-    } catch {
-      return "规格 JSON 格式错误";
-    }
-  }, [variantsJson]);
+  const variantsJson = useMemo(
+    () =>
+      JSON.stringify([
+        {
+          ...primaryVariantBase,
+          price: toNumber(price),
+          costPrice: costPrice.trim() ? toNumber(costPrice) : null,
+          stock: toInteger(stock),
+          status: variantStatus
+        },
+        ...variantBaseList.slice(1)
+      ]),
+    [costPrice, price, primaryVariantBase, stock, variantBaseList, variantStatus]
+  );
 
   async function uploadOne(file: File, usage: "thumbnail" | "detail") {
     const data = new FormData();
@@ -158,7 +181,7 @@ export function ProductForm({
             ))}
           </Select>
         </Field>
-        <Field label="状态">
+        <Field label="商品状态">
           <Select name="status" defaultValue={product?.status ?? "draft"}>
             <option value="draft">草稿</option>
             <option value="active">上架</option>
@@ -175,6 +198,52 @@ export function ProductForm({
       <Field label="商品简介">
         <Textarea name="summary" defaultValue={product?.summary ?? ""} maxLength={300} />
       </Field>
+      <input name="variantsJson" type="hidden" value={variantsJson} />
+      <div className="grid gap-4 lg:grid-cols-4">
+        <Field label="售价">
+          <Input
+            min="0"
+            name="price"
+            onChange={(event) => setPrice(event.target.value)}
+            required
+            step="0.01"
+            type="number"
+            value={price}
+          />
+        </Field>
+        <Field label="成本价">
+          <Input
+            min="0"
+            name="costPrice"
+            onChange={(event) => setCostPrice(event.target.value)}
+            placeholder="可不填"
+            step="0.01"
+            type="number"
+            value={costPrice}
+          />
+        </Field>
+        <Field label="库存">
+          <Input
+            min="0"
+            name="stock"
+            onChange={(event) => setStock(event.target.value)}
+            required
+            step="1"
+            type="number"
+            value={stock}
+          />
+        </Field>
+        <Field label="售卖状态">
+          <Select
+            name="variantStatus"
+            onChange={(event) => setVariantStatus(event.target.value as "active" | "inactive")}
+            value={variantStatus}
+          >
+            <option value="active">可购买</option>
+            <option value="inactive">暂停购买</option>
+          </Select>
+        </Field>
+      </div>
       <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
         <Field label="商品缩略图 URL">
           <Input name="mainImageUrl" onChange={(event) => setMainImageUrl(event.target.value)} required value={mainImageUrl} />
@@ -283,14 +352,6 @@ export function ProductForm({
       <Field label="购买说明">
         <Textarea name="purchaseNote" defaultValue={product?.purchaseNote ?? ""} maxLength={2000} />
       </Field>
-      <Field label={`规格 JSON（${parsedPreview}）`} hint='示例：[{ "optionValues": { "颜色": "白色" }, "price": 89, "stock": 10, "status": "active" }]'>
-        <Textarea
-          className="min-h-48 font-mono"
-          name="variantsJson"
-          onChange={(event) => setVariantsJson(event.target.value)}
-          value={variantsJson}
-        />
-      </Field>
       {state.message ? (
         <p className={state.ok ? "text-sm text-emerald-700" : "text-sm text-red-600"}>{state.message}</p>
       ) : null}
@@ -337,6 +398,20 @@ function toGeneratedThumbnailUrl(url: string) {
     return url;
   }
   return null;
+}
+
+function formatNumberInput(value: number) {
+  return Number.isInteger(value) ? String(value) : String(value);
+}
+
+function toNumber(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function toInteger(value: string) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function toEditableVariants(variants: ProductVariant[] | undefined) {

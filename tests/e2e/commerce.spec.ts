@@ -98,28 +98,16 @@ test("admin can create a category and product that storefront search can find", 
   await page.getByLabel("商品名称").fill(productName);
   await page.getByLabel("Slug").fill(productSlug);
   await page.getByLabel("分类").selectOption({ label: categoryName });
-  await page.getByLabel("状态").selectOption("active");
+  await page.getByLabel("商品状态").selectOption("active");
   await page.getByLabel("商品 SKU").fill(`AUTO-${suffix}`);
   await page.getByLabel("标签").fill("现货, 自动测试");
   await page.getByLabel("商品简介").fill("自动化创建商品，验证后台保存和前台搜索。");
+  await page.getByLabel("售价").fill("12.5");
+  await page.getByLabel("库存").fill("3");
   await page.getByLabel("SEO 标题").fill(`${productName} - Light Commerce`);
   await page.getByLabel("SEO 描述").fill("自动化测试商品 SEO 描述");
   await page.getByLabel("商品详情").fill("<p>自动测试详情</p><script>alert('blocked')</script>");
   await page.getByLabel("购买说明").fill("自动化测试购买说明");
-  await page.getByLabel(/规格 JSON/).fill(
-    JSON.stringify(
-      [
-        {
-          optionValues: { 颜色: "蓝色" },
-          price: 12.5,
-          stock: 3,
-          status: "active"
-        }
-      ],
-      null,
-      2
-    )
-  );
   await page.getByRole("button", { name: "保存商品" }).click();
   await expect(page.getByRole("heading", { name: "编辑商品" })).toBeVisible();
   await expect(page.getByText(productName).first()).toBeVisible();
