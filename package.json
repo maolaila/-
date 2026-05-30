@@ -24,6 +24,7 @@
     "deploy:verify": "pnpm deploy:check && pnpm audit --audit-level moderate --registry https://registry.npmjs.org && pnpm test:round1 && pnpm test:round2"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1057.0",
     "@hookform/resolvers": "^3.10.0",
     "@supabase/supabase-js": "^2.49.4",
     "bcryptjs": "^3.0.2",

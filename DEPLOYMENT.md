@@ -1,19 +1,21 @@
 # 部署手册
 
-目标部署方式：GitHub + Vercel + Supabase Postgres + Supabase Storage。
+目标部署方式：GitHub + Vercel + PostgreSQL（Supabase 或 Neon）+ Cloudflare R2。
 
 ## 最短流程
 
-1. 在 Supabase 创建项目。
-2. 在 Supabase Storage 创建公开 bucket：`product-images`。
-3. 复制生产环境变量模板：
+1. 创建 PostgreSQL 数据库。推荐继续用 Supabase Postgres，也可以用 Neon。
+2. 在 Cloudflare R2 创建 bucket：`product-images`。
+3. 给 R2 bucket 绑定生产自定义域名，例如 `https://img.your-domain.com`。不要用 `r2.dev` 做生产图片域名。
+4. 在 Cloudflare R2 创建 S3 API token，拿到 `Account ID`、`Access Key ID`、`Secret Access Key`。
+5. 复制生产环境变量模板：
 
 ```bash
 cp .env.production.example .env.production
 ```
 
-4. 填写 `.env.production`。
-5. 本地执行一次初始化：
+6. 填写 `.env.production`。
+7. 本地执行一次初始化：
 
 PowerShell：
 
@@ -27,10 +29,10 @@ Bash：
 ENV_FILE=.env.production pnpm deploy:init
 ```
 
-6. 在 Vercel 导入 GitHub 仓库，填写下方“Vercel 环境变量”。
-7. 推送代码后，Vercel 自动构建部署。
+8. 在 Vercel 导入 GitHub 仓库，填写下方“Vercel 环境变量”。
+9. 推送代码后，Vercel 自动构建部署。
 
-`pnpm deploy:init` 已包含：生产变量检查、数据库连接检查、Supabase Storage bucket 检查、数据库迁移、初始管理员和站点配置写入。
+`pnpm deploy:init` 已包含：生产变量检查、数据库连接检查、R2 bucket 连接检查、数据库迁移、初始管理员和站点配置写入。
 
 ## Vercel 环境变量
 
@@ -41,37 +43,52 @@ NEXT_PUBLIC_APP_URL=https://your-production-domain.com
 SESSION_SECRET=replace-with-at-least-32-random-characters
 DATABASE_URL=postgres://...
 DIRECT_DATABASE_URL=postgres://...
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=replace-with-supabase-service-role-key
-SUPABASE_STORAGE_BUCKET=product-images
 PASSWORD_PEPPER=replace-with-at-least-16-random-characters
-STORAGE_DRIVER=supabase
+STORAGE_DRIVER=r2
+R2_ACCOUNT_ID=replace-with-cloudflare-account-id
+R2_ACCESS_KEY_ID=replace-with-r2-access-key-id
+R2_SECRET_ACCESS_KEY=replace-with-r2-secret-access-key
+R2_BUCKET=product-images
+R2_PUBLIC_BASE_URL=https://img.your-production-domain.com
 ```
 
 不要在 Vercel 手工设置 `NODE_ENV`。Vercel 会自动使用 production。
 
 `SEED_ADMIN_PASSWORD` 只用于初始化管理员，不需要长期保存在 Vercel 运行环境中。初始化时放在 `.env.production` 即可。
 
-## Supabase 设置
+## 数据库设置
 
-数据库：
+- `DATABASE_URL`：应用运行时使用。如果用 Supabase Postgres，建议使用 Supabase pooler URL。
+- `DIRECT_DATABASE_URL`：迁移脚本使用。如果用 Supabase Postgres，建议使用 direct connection URL。
+- Vercel 运行时只需要能连接 PostgreSQL，不要求数据库和图片存储都在同一家服务商。
 
-- `DATABASE_URL`：应用运行时使用，建议使用 Supabase pooler URL。
-- `DIRECT_DATABASE_URL`：迁移脚本使用，建议使用 Supabase direct connection URL。
+## Cloudflare R2 设置
 
-Storage：
-
-- bucket 名称默认 `product-images`。
-- bucket 必须设为 public，否则商品图片上传成功后前台无法直接访问。
-- `SUPABASE_SERVICE_ROLE_KEY` 必须使用 service role key，不要使用 anon key。
+- `STORAGE_DRIVER=r2`。
+- `R2_BUCKET` 默认 `product-images`。
+- `R2_PUBLIC_BASE_URL` 必须是绑定到 R2 bucket 的生产自定义域名，例如 `https://img.your-domain.com`。
+- `r2.dev` 只适合开发测试，生产不要使用。
+- `R2_ENDPOINT` 通常不需要设置，系统会用 `https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com`。
 - 商品图上传后不会保存原图，会在服务端转成两份 WebP：
-  - `products/{year}/{uuid}/main.webp`：最大宽度 1200px，quality 80，用于商品主图和详情图。
-  - `products/{year}/{uuid}/thumb.webp`：最大宽度 400px，quality 75，用于后台缩略图预览。
-- 这两份文件由应用通过 `sharp` 生成，不使用 Supabase Image Transformations，因此不会产生 Supabase 图片转换费用。
-- 当前 Supabase 文档显示：Free 组织包含 1GB file storage，Pro/Team 包含 100GB file storage，Pro/Team 超额约 $0.0213/GB/月；Free Storage 带宽额度约为 10GB（cached + uncached）。价格和额度可能调整，正式上线前以 Supabase 官方 pricing/docs 为准。
-- 粗略估算 1 万张商品图的存储量：`10000 × (main.webp + thumb.webp 平均大小)`。如果两份 WebP 合计平均 100KB，约 1GB；平均 200KB，约 2GB；平均 500KB，约 5GB。
-- 正式生产建议使用 Supabase Pro。Free 适合测试或低流量验证，不建议作为长期生产图片存储方案。
-- 参考文档：<https://supabase.com/docs/guides/storage/pricing>、<https://supabase.com/docs/guides/storage/serving/bandwidth>。
+  - `products/{year}/{month}/{uuid}/main.webp`：最大宽度 1200px，quality 80，用于商品主图和详情图。
+  - `products/{year}/{month}/{uuid}/thumb.webp`：最大宽度 400px，quality 75，用于后台缩略图预览。
+- 这两份文件由应用通过 `sharp` 生成，不使用 Cloudflare 图片转换服务。
+- 当前 Cloudflare 官方文档显示：R2 Standard 免费额度包含 10GB-month/月、Class A 100 万次/月、Class B 1000 万次/月，互联网出站流量免费。价格和额度可能调整，正式上线前以 Cloudflare 官方 pricing/docs 为准。
+- 2 万张是上限时，按 `main.webp + thumb.webp` 合计平均大小估算容量：平均 300KB 约 6GB，平均 500KB 约 10GB，平均 1MB 约 20GB。
+- 参考文档：<https://developers.cloudflare.com/r2/pricing/>、<https://developers.cloudflare.com/r2/data-access/public-buckets/>。
+
+## Supabase Storage 备选
+
+如果后续仍想用 Supabase Storage，把 `.env.production` 改成：
+
+```env
+STORAGE_DRIVER=supabase
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=replace-with-supabase-service-role-key
+SUPABASE_STORAGE_BUCKET=product-images
+```
+
+并在 Supabase Storage 创建 public bucket：`product-images`。
 
 ## 常用命令
 
@@ -150,10 +167,11 @@ ALLOW_INSECURE_SEED_DEFAULTS=true
 
 - `pnpm deploy:check` 通过。
 - `pnpm deploy:init` 已对生产数据库执行成功。
-- Supabase bucket `product-images` 存在且 public。
+- R2 bucket `product-images` 存在，并已绑定生产自定义域名。
 - Vercel 环境变量不含 placeholder。
 - `NEXT_PUBLIC_APP_URL` 是正式 `https://` 域名。
-- `STORAGE_DRIVER=supabase`。
+- `STORAGE_DRIVER=r2`。
+- `R2_PUBLIC_BASE_URL` 是正式 `https://` 图片域名，不是 `r2.dev`。
 - `SESSION_SECRET` 至少 32 位。
 - `PASSWORD_PEPPER` 至少 16 位。
 - `pnpm deploy:verify` 通过。

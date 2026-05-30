@@ -29,7 +29,7 @@ ALLOW_INSECURE_SEED_DEFAULTS=true SEED_DEMO_DATA=true pnpm db:seed
 
 ## 生产部署
 
-推荐部署到 Vercel + Supabase。
+推荐部署到 Vercel + PostgreSQL + Cloudflare R2。数据库可用 Supabase Postgres 或 Neon，商品图片默认存到 Cloudflare R2。
 
 最短流程：
 
@@ -56,4 +56,3 @@ pnpm test:round3
 ```bash
 ENV_FILE=.env.production pnpm deploy:check
 ```
-

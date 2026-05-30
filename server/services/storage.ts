@@ -4,10 +4,15 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 
+import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { createClient } from "@supabase/supabase-js";
 import sharp from "sharp";
 
 const maxBytes = 5 * 1024 * 1024;
+const imageCacheControl = "public, max-age=31536000, immutable";
+const storageDrivers = ["local", "supabase", "r2"] as const;
+
+type StorageDriver = (typeof storageDrivers)[number];
 
 const signatures = {
   jpg: [[0xff, 0xd8, 0xff]],
@@ -31,6 +36,42 @@ function detectImage(buffer: Buffer): "jpg" | "png" | "webp" | null {
   return null;
 }
 
+function requireStorageEnv(name: string) {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    throw new Error(`${name} 环境变量未配置`);
+  }
+  return value;
+}
+
+function getStorageDriver(): StorageDriver {
+  const driver = process.env.STORAGE_DRIVER?.trim() || "local";
+  if (storageDrivers.includes(driver as StorageDriver)) {
+    return driver as StorageDriver;
+  }
+  throw new Error(`不支持的 STORAGE_DRIVER：${driver}`);
+}
+
+function getR2Client() {
+  const accountId = requireStorageEnv("R2_ACCOUNT_ID");
+  const accessKeyId = requireStorageEnv("R2_ACCESS_KEY_ID");
+  const secretAccessKey = requireStorageEnv("R2_SECRET_ACCESS_KEY");
+  const endpoint = process.env.R2_ENDPOINT?.trim() || `https://${accountId}.r2.cloudflarestorage.com`;
+
+  return new S3Client({
+    region: "auto",
+    endpoint,
+    credentials: {
+      accessKeyId,
+      secretAccessKey
+    }
+  });
+}
+
+function buildPublicUrl(baseUrl: string, storagePath: string) {
+  return `${baseUrl.replace(/\/+$/, "")}/${storagePath}`;
+}
+
 async function toWebp(buffer: Buffer, options: { maxWidth: number; quality: number }) {
   try {
     return await sharp(buffer, { failOn: "warning" })
@@ -47,8 +88,9 @@ async function toWebp(buffer: Buffer, options: { maxWidth: number; quality: numb
 }
 
 export async function uploadProductImage(file: File) {
-  if (process.env.NODE_ENV === "production" && process.env.STORAGE_DRIVER !== "supabase") {
-    throw new Error("生产环境必须配置 Supabase Storage 上传");
+  const storageDriver = getStorageDriver();
+  if (process.env.NODE_ENV === "production" && storageDriver === "local") {
+    throw new Error("生产环境必须配置 R2 或 Supabase Storage 上传");
   }
 
   if (file.size <= 0 || file.size > maxBytes) {
@@ -66,12 +108,57 @@ export async function uploadProductImage(file: File) {
     toWebp(buffer, { maxWidth: 400, quality: 75 })
   ]);
   const assetId = crypto.randomUUID();
-  const year = new Date().getFullYear();
-  const storageBasePath = `products/${year}/${assetId}`;
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const storageBasePath = `products/${year}/${month}/${assetId}`;
   const mainStoragePath = `${storageBasePath}/main.webp`;
   const thumbStoragePath = `${storageBasePath}/thumb.webp`;
 
-  if (process.env.STORAGE_DRIVER === "supabase") {
+  if (storageDriver === "r2") {
+    const client = getR2Client();
+    const bucket = requireStorageEnv("R2_BUCKET");
+    const publicBaseUrl = requireStorageEnv("R2_PUBLIC_BASE_URL");
+
+    await client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: mainStoragePath,
+        Body: mainBuffer,
+        ContentType: "image/webp",
+        CacheControl: imageCacheControl
+      })
+    );
+
+    try {
+      await client.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: thumbStoragePath,
+          Body: thumbBuffer,
+          ContentType: "image/webp",
+          CacheControl: imageCacheControl
+        })
+      );
+    } catch (error) {
+      await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: mainStoragePath })).catch(() => undefined);
+      throw error;
+    }
+
+    return {
+      url: buildPublicUrl(publicBaseUrl, mainStoragePath),
+      thumbUrl: buildPublicUrl(publicBaseUrl, thumbStoragePath),
+      storagePath: mainStoragePath,
+      thumbStoragePath,
+      contentType: "image/webp",
+      originalFormat: ext,
+      originalBytes: buffer.length,
+      storedBytes: mainBuffer.length,
+      thumbBytes: thumbBuffer.length
+    };
+  }
+
+  if (storageDriver === "supabase") {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const bucket = process.env.SUPABASE_STORAGE_BUCKET ?? "product-images";
@@ -114,7 +201,7 @@ export async function uploadProductImage(file: File) {
     };
   }
 
-  const targetDir = path.join(process.cwd(), "public", "uploads", "products", String(year), assetId);
+  const targetDir = path.join(process.cwd(), "public", "uploads", "products", String(year), month, assetId);
   await fs.mkdir(targetDir, { recursive: true });
   const mainTargetPath = path.join(targetDir, "main.webp");
   const thumbTargetPath = path.join(targetDir, "thumb.webp");
@@ -122,7 +209,7 @@ export async function uploadProductImage(file: File) {
     fs.writeFile(mainTargetPath, mainBuffer),
     fs.writeFile(thumbTargetPath, thumbBuffer)
   ]);
-  const publicBasePath = `/uploads/products/${year}/${assetId}`;
+  const publicBasePath = `/uploads/products/${year}/${month}/${assetId}`;
   return {
     url: `${publicBasePath}/main.webp`,
     thumbUrl: `${publicBasePath}/thumb.webp`,

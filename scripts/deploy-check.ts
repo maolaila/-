@@ -1,5 +1,6 @@
 import "./load-env";
 
+import { HeadBucketCommand, S3Client } from "@aws-sdk/client-s3";
 import { createClient } from "@supabase/supabase-js";
 import postgres from "postgres";
 
@@ -10,6 +11,7 @@ const checkStorage = args.has("--storage");
 
 const failures: string[] = [];
 const warnings: string[] = [];
+const productionStorageDrivers = ["r2", "supabase"];
 
 function env(name: string) {
   return process.env[name]?.trim() ?? "";
@@ -76,13 +78,22 @@ function requirePostgresUrl(name: string) {
   return value;
 }
 
+function requireHttpsUrl(name: string) {
+  const value = requireValue(name);
+  if (!value) {
+    return "";
+  }
+  const url = parseUrl(name, value);
+  if (url && url.protocol !== "https:") {
+    fail(name, "must use https:// in production.");
+  }
+  return value;
+}
+
 function validateEnvironment() {
   const databaseUrl = requirePostgresUrl("DATABASE_URL");
   const directDatabaseUrl = requirePostgresUrl("DIRECT_DATABASE_URL");
   const appUrl = requireValue("NEXT_PUBLIC_APP_URL");
-  const supabaseUrl = requireValue("NEXT_PUBLIC_SUPABASE_URL");
-  const serviceRoleKey = requireMinLength("SUPABASE_SERVICE_ROLE_KEY", 40);
-  const bucket = requireValue("SUPABASE_STORAGE_BUCKET");
   const storageDriver = requireValue("STORAGE_DRIVER");
 
   requireMinLength("SESSION_SECRET", 32);
@@ -92,8 +103,8 @@ function validateEnvironment() {
     fail("NODE_ENV", "must not be set to a non-production value for deployment.");
   }
 
-  if (storageDriver && storageDriver !== "supabase") {
-    fail("STORAGE_DRIVER", "must be supabase in production.");
+  if (storageDriver && !productionStorageDrivers.includes(storageDriver)) {
+    fail("STORAGE_DRIVER", "must be r2 or supabase in production.");
   }
 
   const parsedAppUrl = appUrl ? parseUrl("NEXT_PUBLIC_APP_URL", appUrl) : null;
@@ -106,21 +117,46 @@ function validateEnvironment() {
     }
   }
 
-  const parsedSupabaseUrl = supabaseUrl ? parseUrl("NEXT_PUBLIC_SUPABASE_URL", supabaseUrl) : null;
-  if (parsedSupabaseUrl && parsedSupabaseUrl.protocol !== "https:") {
-    fail("NEXT_PUBLIC_SUPABASE_URL", "must use https://.");
-  }
-
   if (databaseUrl && directDatabaseUrl && databaseUrl === directDatabaseUrl) {
     warn("DIRECT_DATABASE_URL", "uses the same value as DATABASE_URL; Supabase direct and pooled URLs are usually different.");
   }
 
-  if (serviceRoleKey && serviceRoleKey.length < 80) {
-    warn("SUPABASE_SERVICE_ROLE_KEY", "is unusually short for a Supabase service role key.");
+  if (storageDriver === "r2") {
+    requireValue("R2_ACCOUNT_ID");
+    requireValue("R2_ACCESS_KEY_ID");
+    requireMinLength("R2_SECRET_ACCESS_KEY", 20);
+    const bucket = requireValue("R2_BUCKET");
+    const publicBaseUrl = requireHttpsUrl("R2_PUBLIC_BASE_URL");
+    const endpoint = env("R2_ENDPOINT");
+
+    if (bucket && bucket !== "product-images") {
+      warn("R2_BUCKET", "differs from the documented default product-images.");
+    }
+    if (publicBaseUrl) {
+      const parsedPublicBaseUrl = parseUrl("R2_PUBLIC_BASE_URL", publicBaseUrl);
+      if (parsedPublicBaseUrl?.hostname.endsWith(".r2.dev")) {
+        fail("R2_PUBLIC_BASE_URL", "must use a custom domain for production, not an r2.dev development URL.");
+      }
+    }
+    if (endpoint) {
+      const parsedEndpoint = parseUrl("R2_ENDPOINT", endpoint);
+      if (parsedEndpoint && parsedEndpoint.protocol !== "https:") {
+        fail("R2_ENDPOINT", "must use https://.");
+      }
+    }
   }
 
-  if (bucket && bucket !== "product-images") {
-    warn("SUPABASE_STORAGE_BUCKET", "differs from the documented default product-images.");
+  if (storageDriver === "supabase") {
+    const supabaseUrl = requireHttpsUrl("NEXT_PUBLIC_SUPABASE_URL");
+    const serviceRoleKey = requireMinLength("SUPABASE_SERVICE_ROLE_KEY", 40);
+    const bucket = requireValue("SUPABASE_STORAGE_BUCKET");
+
+    if (supabaseUrl && serviceRoleKey.length < 80) {
+      warn("SUPABASE_SERVICE_ROLE_KEY", "is unusually short for a Supabase service role key.");
+    }
+    if (bucket && bucket !== "product-images") {
+      warn("SUPABASE_STORAGE_BUCKET", "differs from the documented default product-images.");
+    }
   }
 
   if (process.env.ALLOW_INSECURE_SEED_DEFAULTS === "true") {
@@ -178,6 +214,42 @@ async function validateSupabaseStorage() {
   }
 }
 
+async function validateR2Storage() {
+  const accountId = env("R2_ACCOUNT_ID");
+  const accessKeyId = env("R2_ACCESS_KEY_ID");
+  const secretAccessKey = env("R2_SECRET_ACCESS_KEY");
+  const bucket = env("R2_BUCKET");
+  if (!accountId || !accessKeyId || !secretAccessKey || !bucket || failures.some((item) => item.startsWith("R2_"))) {
+    return;
+  }
+
+  const endpoint = env("R2_ENDPOINT") || `https://${accountId}.r2.cloudflarestorage.com`;
+  const client = new S3Client({
+    region: "auto",
+    endpoint,
+    credentials: {
+      accessKeyId,
+      secretAccessKey
+    }
+  });
+
+  try {
+    await client.send(new HeadBucketCommand({ Bucket: bucket }));
+  } catch (error) {
+    fail("R2_BUCKET", error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function validateStorage() {
+  const storageDriver = env("STORAGE_DRIVER");
+  if (storageDriver === "r2") {
+    await validateR2Storage();
+  }
+  if (storageDriver === "supabase") {
+    await validateSupabaseStorage();
+  }
+}
+
 async function main() {
   validateEnvironment();
 
@@ -185,7 +257,7 @@ async function main() {
     await validateDatabaseConnection();
   }
   if (checkStorage) {
-    await validateSupabaseStorage();
+    await validateStorage();
   }
 
   if (warnings.length > 0) {
