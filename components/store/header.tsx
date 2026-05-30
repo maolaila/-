@@ -6,16 +6,17 @@ import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/server/auth";
 import { getCartItems } from "@/server/services/cart";
 import { getVisibleCategories } from "@/server/services/catalog";
+import { getSiteSettings } from "@/server/services/settings";
 
 export async function StoreHeader() {
-  const [user, categories] = await Promise.all([getCurrentUser(), getVisibleCategories()]);
+  const [user, categories, settings] = await Promise.all([getCurrentUser(), getVisibleCategories(), getSiteSettings()]);
   const cartCount = user ? (await getCartItems(user.id)).reduce((sum, item) => sum + item.quantity, 0) : 0;
 
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center gap-2 px-3 py-3 sm:gap-4 sm:px-4">
         <Link href="/" className="min-w-0 flex-1 text-base font-bold tracking-normal text-ink sm:text-lg md:flex-none">
-          Light Commerce
+          {settings.storeName}
         </Link>
         <nav className="hidden items-center gap-1 md:flex">
           <Link className="rounded-md px-3 py-2 text-sm text-muted hover:bg-wash hover:text-ink" href="/products">

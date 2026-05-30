@@ -4,10 +4,10 @@ import "@/app/globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Light Commerce",
-    template: "%s | Light Commerce"
+    default: "代购商城",
+    template: "%s | 代购商城"
   },
-  description: "轻量电商系统"
+  description: "现货与预订代购商城"
 };
 
 export const viewport: Viewport = {

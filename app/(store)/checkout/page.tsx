@@ -23,7 +23,12 @@ export default async function CheckoutPage() {
       </div>
 
       {validItems.length === 0 ? (
-        <EmptyState title="没有可结算商品" description="购物车为空或存在库存/状态异常。" />
+        <EmptyState
+          title="没有可结算商品"
+          description="购物车为空，或商品库存/状态发生变化。"
+          actionHref="/cart"
+          actionLabel="返回购物车"
+        />
       ) : (
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <section className="rounded-md border border-line bg-white p-5">

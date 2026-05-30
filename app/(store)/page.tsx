@@ -26,7 +26,7 @@ export default async function HomePage() {
               {settings.storeName}
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-muted">
-              轻量真实销售商城，支持现货、预订、人工确认付款和后台订单流转。
+              精选现货和预订商品，下单后由客服确认付款、采购和发货进度。
             </p>
             <div className="mt-6 grid gap-3 sm:flex sm:flex-wrap">
               <ButtonLink className="w-full sm:w-auto" href="/products">
@@ -52,7 +52,7 @@ export default async function HomePage() {
         <div className="mb-5 flex items-end justify-between gap-4">
           <div>
             <h2 className="text-xl font-semibold">分类入口</h2>
-            <p className="mt-1 text-sm text-muted">按实际销售品类快速浏览。</p>
+            <p className="mt-1 text-sm text-muted">按商品类型快速浏览。</p>
           </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -73,7 +73,7 @@ export default async function HomePage() {
         <div className="mb-5 flex items-end justify-between gap-4">
           <div>
             <h2 className="text-xl font-semibold">推荐商品</h2>
-            <p className="mt-1 text-sm text-muted">优先展示现货和重点商品。</p>
+            <p className="mt-1 text-sm text-muted">优先展示现货和近期上新的商品。</p>
           </div>
           <Link className="text-sm font-medium text-brand" href="/products">
             查看全部

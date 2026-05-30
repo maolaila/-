@@ -14,12 +14,10 @@ export default async function AdminCategoriesPage() {
         <h1 className="text-2xl font-semibold">分类管理</h1>
         <p className="mt-1 text-sm text-muted">分类下存在商品时不能删除，可隐藏。</p>
       </div>
-      <form action={createCategoryAction} className="grid gap-4 rounded-md border border-line bg-white p-4 lg:grid-cols-[1fr_1fr_120px_120px]">
+      <form action={createCategoryAction} className="grid gap-4 rounded-md border border-line bg-white p-4 lg:grid-cols-[1fr_120px_120px]">
+        <input name="slug" type="hidden" value="" />
         <Field label="分类名称">
           <Input name="name" maxLength={50} required />
-        </Field>
-        <Field label="Slug">
-          <Input name="slug" required />
         </Field>
         <Field label="排序">
           <Input name="sortOrder" defaultValue={100} min={0} type="number" />
@@ -28,7 +26,7 @@ export default async function AdminCategoriesPage() {
           <input defaultChecked name="isVisible" type="checkbox" />
           显示
         </label>
-        <div className="lg:col-span-4">
+        <div className="lg:col-span-3">
           <Button>
             <Plus className="h-4 w-4" />
             新增分类
@@ -40,7 +38,6 @@ export default async function AdminCategoriesPage() {
           <thead className="bg-wash text-muted">
             <tr>
               <th className="px-4 py-3">名称</th>
-              <th className="px-4 py-3">Slug</th>
               <th className="px-4 py-3">排序</th>
               <th className="px-4 py-3">显示</th>
               <th className="px-4 py-3">商品数</th>
@@ -50,11 +47,11 @@ export default async function AdminCategoriesPage() {
           <tbody>
             {categories.map((category) => (
               <tr className="border-t border-line" key={category.id}>
-                <td className="px-4 py-3" colSpan={5}>
-                  <form action={updateCategoryAction} className="grid gap-3 md:grid-cols-[1fr_1fr_100px_80px_80px_120px] md:items-center">
+                <td className="px-4 py-3" colSpan={4}>
+                  <form action={updateCategoryAction} className="grid gap-3 md:grid-cols-[1fr_100px_80px_80px_120px] md:items-center">
                     <input type="hidden" name="id" value={category.id} />
+                    <input type="hidden" name="slug" value={category.slug} />
                     <Input name="name" defaultValue={category.name} />
-                    <Input name="slug" defaultValue={category.slug} />
                     <Input name="sortOrder" defaultValue={category.sortOrder} type="number" />
                     <label className="flex items-center gap-2">
                       <input defaultChecked={category.isVisible} name="isVisible" type="checkbox" />

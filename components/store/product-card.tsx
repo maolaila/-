@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import type { ProductCard as ProductCardType } from "@/server/services/catalog";
-import { formatMoney } from "@/lib/utils";
+import { formatPriceRange } from "@/lib/utils";
 
 export function ProductCard({ product, currency }: { product: ProductCardType; currency: string }) {
   const soldOut = product.totalStock <= 0;
@@ -23,7 +23,7 @@ export function ProductCard({ product, currency }: { product: ProductCardType; c
               <p className="mt-1 text-xs text-muted">{product.categoryName}</p>
             </div>
             <span className="shrink-0 text-sm font-semibold text-brand">
-              {formatMoney(product.minPrice, currency)}
+              {formatPriceRange(product.minPrice, product.maxPrice, currency)}
             </span>
           </div>
           {product.summary ? <p className="line-clamp-2 min-h-10 text-sm text-muted">{product.summary}</p> : null}

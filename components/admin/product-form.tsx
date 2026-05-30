@@ -1,12 +1,13 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { Save, Upload } from "lucide-react";
+import { ArrowDown, ArrowUp, ImagePlus, Save, Star, Trash2, Upload } from "lucide-react";
 
 import { createProductAction, updateProductAction } from "@/app/admin/actions";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { emptyActionState } from "@/lib/action-state";
+import { cn } from "@/lib/utils";
 import type { CategoryRow, ProductDetail, ProductVariant } from "@/server/services/catalog";
 
 type UploadResult = {
@@ -40,6 +41,11 @@ const defaultVariant: EditableProductVariant[] = [
   }
 ];
 
+const imageActionClass =
+  "inline-flex h-8 items-center justify-center gap-1 rounded-md border border-line bg-white px-2 text-xs font-medium text-ink transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45";
+const imageDangerActionClass =
+  "inline-flex h-8 items-center justify-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 text-xs font-medium text-red-700 transition hover:bg-red-100";
+
 export function ProductForm({
   categories,
   product
@@ -49,7 +55,7 @@ export function ProductForm({
 }) {
   const [state, action, pending] = useActionState(product ? updateProductAction : createProductAction, emptyActionState);
   const [mainImageUrl, setMainImageUrl] = useState(product?.mainImageUrl ?? "");
-  const [images, setImages] = useState((product?.images ?? []).map((image) => image.url).join("\n"));
+  const [detailImages, setDetailImages] = useState(() => (product?.images ?? []).map((image) => image.url));
   const [variantBaseList] = useState(() => toEditableVariants(product?.variants));
   const primaryVariantBase = variantBaseList[0] ?? defaultVariant[0];
   const [price, setPrice] = useState(() => formatNumberInput(primaryVariantBase.price));
@@ -65,7 +71,7 @@ export function ProductForm({
   const [thumbnailUploadInfo, setThumbnailUploadInfo] = useState<string | null>(null);
   const [detailUploadInfo, setDetailUploadInfo] = useState<string | null>(null);
   const [uploadedThumbs, setUploadedThumbs] = useState<Record<string, string>>({});
-  const detailImageUrls = useMemo(() => parseImageUrls(images), [images]);
+  const detailImagesValue = useMemo(() => detailImages.join("\n"), [detailImages]);
   const variantsJson = useMemo(
     () =>
       JSON.stringify([
@@ -134,17 +140,8 @@ export function ProductForm({
       const detailUrls = uploaded
         .map((body) => body.detailUrl ?? body.url)
         .filter((url): url is string => Boolean(url));
-      setImages((current) => appendDetailImageUrls(current, detailUrls));
-      setUploadedThumbs((current) => {
-        const next = { ...current };
-        for (const body of uploaded) {
-          const detailUrl = body.detailUrl ?? body.url;
-          if (detailUrl && body.thumbUrl) {
-            next[detailUrl] = body.thumbUrl;
-          }
-        }
-        return next;
-      });
+      setDetailImages((current) => appendDetailImageUrls(current, detailUrls));
+      setUploadedThumbs((current) => toUploadedThumbMap(current, uploaded));
       const totalOriginalBytes = uploaded.reduce((sum, body) => sum + (body.originalBytes ?? 0), 0);
       const totalStoredBytes = uploaded.reduce((sum, body) => sum + (body.storedBytes ?? 0), 0);
       setDetailUploadInfo(
@@ -161,15 +158,55 @@ export function ProductForm({
     }
   }
 
+  async function replaceDetailImage(index: number, file: File | null) {
+    if (!file) {
+      return;
+    }
+    setDetailUploading(true);
+    setDetailUploadError(null);
+    setDetailUploadInfo(null);
+    try {
+      const body = await uploadOne(file, "detail");
+      const detailUrl = body.detailUrl ?? body.url;
+      if (!detailUrl) {
+        throw new Error("上传失败");
+      }
+      setDetailImages((current) => replaceDetailImageUrl(current, index, detailUrl));
+      setUploadedThumbs((current) => toUploadedThumbMap(current, [body]));
+      setDetailUploadInfo(`已更换第 ${index + 1} 张详情图`);
+    } catch (error) {
+      setDetailUploadError(error instanceof Error ? error.message : "上传失败");
+    } finally {
+      setDetailUploading(false);
+    }
+  }
+
+  function moveDetailImage(index: number, direction: -1 | 1) {
+    setDetailImages((current) => {
+      const target = index + direction;
+      if (target < 0 || target >= current.length) {
+        return current;
+      }
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }
+
+  function removeDetailImage(index: number) {
+    setDetailImages((current) => current.filter((_, currentIndex) => currentIndex !== index));
+  }
+
   return (
     <form action={action} className="grid gap-5">
       {product ? <input type="hidden" name="id" value={product.id} /> : null}
+      <input name="slug" type="hidden" value={product?.slug ?? ""} />
+      <input name="sku" type="hidden" value={product?.sku ?? ""} />
+      <input name="mainImageUrl" type="hidden" value={mainImageUrl} />
+      <input name="images" type="hidden" value={detailImagesValue} />
       <div className="grid gap-4 lg:grid-cols-2">
         <Field label="商品名称">
           <Input name="name" defaultValue={product?.name ?? ""} maxLength={120} required />
-        </Field>
-        <Field label="Slug">
-          <Input name="slug" defaultValue={product?.slug ?? ""} required />
         </Field>
         <Field label="分类">
           <Select name="categoryId" defaultValue={product?.categoryId ?? ""} required>
@@ -187,9 +224,6 @@ export function ProductForm({
             <option value="active">上架</option>
             <option value="inactive">下架</option>
           </Select>
-        </Field>
-        <Field label="商品 SKU">
-          <Input name="sku" defaultValue={product?.sku ?? ""} />
         </Field>
         <Field label="标签">
           <Input name="tags" defaultValue={product?.tags.join(", ") ?? ""} placeholder="新品, 现货, 预订" />
@@ -244,15 +278,13 @@ export function ProductForm({
           </Select>
         </Field>
       </div>
-      <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
-        <Field label="商品缩略图 URL">
-          <Input name="mainImageUrl" onChange={(event) => setMainImageUrl(event.target.value)} required value={mainImageUrl} />
-        </Field>
-        <label className="grid gap-2 text-sm font-medium">
-          上传列表缩略图
-          <span className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-line bg-white px-3 text-sm hover:bg-slate-50">
+
+      <section className="grid gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-base font-semibold text-ink">列表缩略图</h2>
+          <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium hover:bg-slate-50">
             <Upload className="h-4 w-4" />
-            {thumbnailUploading ? "上传中" : "选择缩略图"}
+            {thumbnailUploading ? "上传中" : mainImageUrl ? "更换缩略图" : "上传缩略图"}
             <input
               accept="image/png,image/jpeg,image/webp"
               className="sr-only"
@@ -263,30 +295,35 @@ export function ProductForm({
               }}
               type="file"
             />
-          </span>
-          {thumbnailUploadError ? <span className="text-xs font-normal text-red-600">{thumbnailUploadError}</span> : null}
-          {thumbnailUploadInfo ? <span className="text-xs font-normal text-emerald-700">{thumbnailUploadInfo}</span> : null}
-        </label>
-      </div>
-      {mainImageUrl ? (
-        <div className="grid gap-2">
-          <div className="text-sm font-medium text-ink">当前商品缩略图</div>
-          <div className="w-28 overflow-hidden rounded-md border border-line bg-white">
-            <div className="aspect-square bg-slate-100">
-              <img alt="商品缩略图" className="h-full w-full object-cover" src={mainImageUrl} />
-            </div>
-          </div>
+          </label>
         </div>
-      ) : null}
-      <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
-        <Field label="详情图片 URL（每行一个，不限数量）">
-          <Textarea name="images" onChange={(event) => setImages(event.target.value)} value={images} />
-        </Field>
-        <label className="grid content-start gap-2 text-sm font-medium">
-          批量上传详情图
-          <span className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-line bg-white px-3 text-sm hover:bg-slate-50">
-            <Upload className="h-4 w-4" />
-            {detailUploading ? "上传中" : "选择详情图"}
+        {thumbnailUploadError ? <span className="text-xs font-normal text-red-600">{thumbnailUploadError}</span> : null}
+        {thumbnailUploadInfo ? <span className="text-xs font-normal text-emerald-700">{thumbnailUploadInfo}</span> : null}
+        {mainImageUrl ? (
+          <div className="grid w-36 gap-2">
+            <div className="overflow-hidden rounded-md border border-line bg-white">
+              <div className="aspect-square bg-slate-100">
+                <img alt="商品缩略图" className="h-full w-full object-cover" src={mainImageUrl} />
+              </div>
+            </div>
+            <button className={imageDangerActionClass} onClick={() => setMainImageUrl("")} type="button">
+              <Trash2 className="h-3.5 w-3.5" />
+              删除
+            </button>
+          </div>
+        ) : (
+          <div className="grid h-28 place-items-center rounded-md border border-dashed border-line bg-white text-sm text-muted">
+            未上传缩略图
+          </div>
+        )}
+      </section>
+
+      <section className="grid gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-base font-semibold text-ink">详情图片</h2>
+          <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium hover:bg-slate-50">
+            <ImagePlus className="h-4 w-4" />
+            {detailUploading ? "上传中" : "添加详情图"}
             <input
               accept="image/png,image/jpeg,image/webp"
               className="sr-only"
@@ -298,46 +335,89 @@ export function ProductForm({
               }}
               type="file"
             />
-          </span>
-          <span className="text-xs font-normal text-muted">可一次选择多张，也可以只选一张。</span>
-          {detailUploadError ? <span className="text-xs font-normal text-red-600">{detailUploadError}</span> : null}
-          {detailUploadInfo ? <span className="text-xs font-normal text-emerald-700">{detailUploadInfo}</span> : null}
-        </label>
-      </div>
-      {detailImageUrls.length > 0 ? (
-        <div className="grid gap-2">
-          <div className="text-sm font-medium text-ink">详情图片预览</div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-            {detailImageUrls.map((url, index) => {
-              const generatedThumbUrl = uploadedThumbs[url] ?? toGeneratedThumbnailUrl(url);
+          </label>
+        </div>
+        {detailUploadError ? <span className="text-xs font-normal text-red-600">{detailUploadError}</span> : null}
+        {detailUploadInfo ? <span className="text-xs font-normal text-emerald-700">{detailUploadInfo}</span> : null}
+        {detailImages.length > 0 ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {detailImages.map((url, index) => {
+              const previewUrl = uploadedThumbs[url] ?? toGeneratedThumbnailUrl(url) ?? url;
               return (
                 <figure className="overflow-hidden rounded-md border border-line bg-white" key={`${url}-${index}`}>
                   <div className="aspect-square bg-slate-100">
-                    <img alt={`详情图 ${index + 1}`} className="h-full w-full object-cover" src={generatedThumbUrl ?? url} />
+                    <img alt={`详情图 ${index + 1}`} className="h-full w-full object-cover" src={previewUrl} />
                   </div>
-                  <figcaption className="grid gap-1 px-2 py-1 text-xs text-muted">
-                    <span className="truncate">详情图 {index + 1}</span>
-                    {generatedThumbUrl ? (
+                  <figcaption className="grid gap-2 p-2 text-xs text-muted">
+                    <div className="flex min-h-5 items-center justify-between gap-2">
+                      <span className="font-medium text-ink">详情图 {index + 1}</span>
+                      {index === 0 ? <span className="rounded bg-wash px-1.5 py-0.5">首图</span> : null}
+                    </div>
+                    <div className="grid grid-cols-2 gap-1">
                       <button
-                        className="text-left text-brand hover:underline"
-                        onClick={() => setMainImageUrl(generatedThumbUrl)}
+                        className={imageActionClass}
+                        disabled={index === 0 || detailUploading}
+                        onClick={() => moveDetailImage(index, -1)}
                         type="button"
                       >
-                        设为商品缩略图
+                        <ArrowUp className="h-3.5 w-3.5" />
+                        上移
                       </button>
-                    ) : null}
+                      <button
+                        className={imageActionClass}
+                        disabled={index === detailImages.length - 1 || detailUploading}
+                        onClick={() => moveDetailImage(index, 1)}
+                        type="button"
+                      >
+                        <ArrowDown className="h-3.5 w-3.5" />
+                        下移
+                      </button>
+                      <button
+                        className={cn(imageActionClass, "col-span-2")}
+                        disabled={detailUploading}
+                        onClick={() => setMainImageUrl(url)}
+                        type="button"
+                      >
+                        <Star className="h-3.5 w-3.5" />
+                        设为缩略图
+                      </button>
+                      <label className={cn(imageActionClass, detailUploading ? "cursor-not-allowed opacity-45" : "cursor-pointer")}>
+                        <Upload className="h-3.5 w-3.5" />
+                        更换
+                        <input
+                          accept="image/png,image/jpeg,image/webp"
+                          className="sr-only"
+                          disabled={thumbnailUploading || detailUploading}
+                          onChange={(event) => {
+                            void replaceDetailImage(index, event.target.files?.[0] ?? null);
+                            event.target.value = "";
+                          }}
+                          type="file"
+                        />
+                      </label>
+                      <button
+                        className={imageDangerActionClass}
+                        disabled={detailUploading}
+                        onClick={() => removeDetailImage(index)}
+                        type="button"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        删除
+                      </button>
+                    </div>
                   </figcaption>
                 </figure>
               );
             })}
           </div>
-        </div>
-      ) : null}
-      {detailImageUrls.length > 0 ? (
-        <div className="rounded-md border border-line bg-white p-3 text-xs text-muted">
-          详情图片数量：{detailImageUrls.length}。商品缩略图单独保存，详情图片不限制数量。
-        </div>
-      ) : null}
+        ) : (
+          <div className="grid h-28 place-items-center rounded-md border border-dashed border-line bg-white text-sm text-muted">
+            未上传详情图
+          </div>
+        )}
+        {detailImages.length > 0 ? <div className="text-xs text-muted">详情图片数量：{detailImages.length}</div> : null}
+      </section>
+
       <div className="grid gap-4 lg:grid-cols-2">
         <Field label="SEO 标题">
           <Input name="seoTitle" defaultValue={product?.seoTitle ?? ""} maxLength={70} />
@@ -365,19 +445,33 @@ export function ProductForm({
   );
 }
 
-function parseImageUrls(images: string) {
-  return Array.from(
-    new Set(
-      images
-        .split(/\r?\n/)
-        .map((url) => url.trim())
-        .filter(Boolean)
-    )
-  );
+function appendDetailImageUrls(images: string[], urls: string[]) {
+  const next = [...images];
+  const existing = new Set(next);
+  for (const url of urls) {
+    if (!existing.has(url)) {
+      next.push(url);
+      existing.add(url);
+    }
+  }
+  return next;
 }
 
-function appendDetailImageUrls(images: string, urls: string[]) {
-  return Array.from(new Set([...parseImageUrls(images), ...urls])).join("\n");
+function replaceDetailImageUrl(images: string[], index: number, url: string) {
+  const next = images.filter((currentUrl, currentIndex) => currentIndex === index || currentUrl !== url);
+  next[index] = url;
+  return next.filter(Boolean);
+}
+
+function toUploadedThumbMap(current: Record<string, string>, uploaded: UploadResult[]) {
+  const next = { ...current };
+  for (const body of uploaded) {
+    const detailUrl = body.detailUrl ?? body.url;
+    if (detailUrl && body.thumbUrl) {
+      next[detailUrl] = body.thumbUrl;
+    }
+  }
+  return next;
 }
 
 function formatBytes(bytes: number) {

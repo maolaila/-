@@ -18,7 +18,7 @@ export default async function OrdersPage() {
         <p className="mt-1 text-sm text-muted">只能查看当前账号提交的订单。</p>
       </div>
       {orders.length === 0 ? (
-        <EmptyState title="暂无订单" description="提交订单后会在这里显示处理状态。" />
+        <EmptyState title="暂无订单" description="提交订单后会在这里显示处理状态。" actionHref="/products" actionLabel="去挑商品" />
       ) : (
         <>
         <div className="grid gap-3 md:hidden">

@@ -68,15 +68,12 @@ test("admin can create a category and product that storefront search can find", 
   const detailFile1 = test.info().outputPath(`product-detail-1-${suffix}.png`);
   const detailFile2 = test.info().outputPath(`product-detail-2-${suffix}.png`);
   const categoryName = `自动测试分类 ${suffix}`;
-  const categorySlug = `auto-category-${suffix}`;
   const productName = `自动测试商品 ${suffix}`;
-  const productSlug = `auto-product-${suffix}`;
 
   await loginAdmin(page);
 
   await page.goto("/admin/categories");
   await page.getByLabel("分类名称").fill(categoryName);
-  await page.getByLabel("Slug").first().fill(categorySlug);
   await page.getByRole("button", { name: "新增分类" }).click();
   await expect(page.locator(`input[value="${categoryName}"]`)).toBeVisible();
 
@@ -89,17 +86,17 @@ test("admin can create a category and product that storefront search can find", 
   await fs.writeFile(detailFile2, Buffer.from(pngFixtureBase64, "base64"));
   await page.locator('input[type="file"]').nth(0).setInputFiles(thumbnailFile);
   await expect(page.getByText(/缩略图已生成 WebP/)).toBeVisible();
-  await expect(page.locator('img[src$="-thumb.webp"]').first()).toBeVisible();
-  await expect(page.getByLabel("商品缩略图 URL")).toHaveValue(/-thumb\.webp$/);
-  await expect(page.getByLabel(/详情图片 URL/)).toHaveValue("");
+  await expect(page.locator('img[alt="商品缩略图"][src$="-thumb.webp"]').first()).toBeVisible();
+  await expect(page.locator('input[name="mainImageUrl"]')).toHaveValue(/-thumb\.webp$/);
+  await expect(page.locator('input[name="images"]')).toHaveValue("");
   await page.locator('input[type="file"]').nth(1).setInputFiles([detailFile1, detailFile2]);
   await expect(page.getByText(/已上传 2 张详情图并转成 WebP/)).toBeVisible();
-  await expect(page.getByLabel(/详情图片 URL/)).toHaveValue(/\.webp\r?\n.*\.webp$/);
+  await expect(page.locator('input[name="images"]')).toHaveValue(/\.webp\r?\n.*\.webp$/);
+  await expect(page.getByText("详情图 1")).toBeVisible();
+  await expect(page.getByText("详情图 2")).toBeVisible();
   await page.getByLabel("商品名称").fill(productName);
-  await page.getByLabel("Slug").fill(productSlug);
   await page.getByLabel("分类").selectOption({ label: categoryName });
   await page.getByLabel("商品状态").selectOption("active");
-  await page.getByLabel("商品 SKU").fill(`AUTO-${suffix}`);
   await page.getByLabel("标签").fill("现货, 自动测试");
   await page.getByLabel("商品简介").fill("自动化创建商品，验证后台保存和前台搜索。");
   await page.getByLabel("售价").fill("12.5");
@@ -115,7 +112,7 @@ test("admin can create a category and product that storefront search can find", 
   await page.goto(`/products?q=${encodeURIComponent(productName)}`);
   await expect(page.getByText(productName).first()).toBeVisible();
   await page.getByText(productName).first().click();
-  await expect(page).toHaveURL(new RegExp(`/products/${productSlug}$`));
+  await expect(page).toHaveURL(/\/products\/[^/?#]+$/);
   await expect(page.getByText("自动测试详情")).toBeVisible();
   await expect(page.locator("script", { hasText: "blocked" })).toHaveCount(0);
 });

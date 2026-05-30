@@ -35,7 +35,7 @@ export default async function CartPage() {
       </div>
 
       {items.length === 0 ? (
-        <EmptyState title="购物车为空" description="先去商品列表挑选商品。" />
+        <EmptyState title="购物车为空" description="先去商品列表挑选商品。" actionHref="/products" actionLabel="去挑商品" />
       ) : (
         <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
           <section className="overflow-hidden rounded-md border border-line bg-white">
@@ -89,10 +89,20 @@ export default async function CartPage() {
               <span>合计</span>
               <span>{formatMoney(total, settings.currency)}</span>
             </div>
-            {hasInvalid ? <p className="mt-3 text-sm text-red-600">存在不可结算商品，请先调整。</p> : null}
-            <ButtonLink className="mt-5 w-full" href="/checkout" variant={hasInvalid ? "secondary" : "primary"}>
-              去结算
-            </ButtonLink>
+            {hasInvalid ? <p className="mt-3 text-sm text-red-600">存在不可结算商品，请先删除或调整数量。</p> : null}
+            {hasInvalid ? (
+              <button
+                className="mt-5 inline-flex h-10 w-full cursor-not-allowed items-center justify-center rounded-md border border-line bg-white px-4 text-sm font-medium text-muted"
+                disabled
+                type="button"
+              >
+                请先调整购物车
+              </button>
+            ) : (
+              <ButtonLink className="mt-5 w-full" href="/checkout">
+                去结算
+              </ButtonLink>
+            )}
           </aside>
         </div>
       )}

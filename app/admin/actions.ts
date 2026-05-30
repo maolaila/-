@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import type { ProductStatus, UserStatus } from "@/db/schema";
 import type { ActionState } from "@/lib/action-state";
 import { errorState } from "@/lib/action-state";
-import { compactText, parseTags } from "@/lib/utils";
+import { compactText, parseTags, toSlug } from "@/lib/utils";
 import { requireAdmin } from "@/server/auth";
 import {
   createCategory,
@@ -29,9 +29,11 @@ import { resetCustomerPassword, setCustomerStatus } from "@/server/services/user
 function productInput(formData: FormData) {
   const variantsRaw = compactText(formData.get("variantsJson"));
   const imagesRaw = compactText(formData.get("images"));
+  const name = compactText(formData.get("name"));
+  const slug = compactText(formData.get("slug"));
   return {
-    name: compactText(formData.get("name")),
-    slug: compactText(formData.get("slug")),
+    name,
+    slug: slug || autoProductSlug(name),
     categoryId: compactText(formData.get("categoryId")),
     sku: compactText(formData.get("sku")) || null,
     summary: compactText(formData.get("summary")) || null,
@@ -47,11 +49,28 @@ function productInput(formData: FormData) {
   };
 }
 
+function autoProductSlug(name: string) {
+  return autoSlug(name, "product", 100);
+}
+
+function autoCategorySlug(name: string) {
+  return autoSlug(name, "category", 80);
+}
+
+function autoSlug(name: string, fallback: string, maxLength: number) {
+  const suffix = Date.now().toString(36);
+  const maxBaseLength = Math.max(1, maxLength - suffix.length - 1);
+  const base = toSlug(name).slice(0, maxBaseLength) || fallback;
+  return `${base}-${suffix}`.slice(0, maxLength);
+}
+
 export async function createCategoryAction(formData: FormData) {
   await requireAdmin();
+  const name = compactText(formData.get("name"));
+  const slug = compactText(formData.get("slug"));
   await createCategory({
-    name: compactText(formData.get("name")),
-    slug: compactText(formData.get("slug")),
+    name,
+    slug: slug || autoCategorySlug(name),
     sortOrder: formData.get("sortOrder"),
     isVisible: formData.get("isVisible") === "on"
   });
@@ -60,9 +79,11 @@ export async function createCategoryAction(formData: FormData) {
 
 export async function updateCategoryAction(formData: FormData) {
   await requireAdmin();
+  const name = compactText(formData.get("name"));
+  const slug = compactText(formData.get("slug"));
   await updateCategory(compactText(formData.get("id")), {
-    name: compactText(formData.get("name")),
-    slug: compactText(formData.get("slug")),
+    name,
+    slug: slug || autoCategorySlug(name),
     sortOrder: formData.get("sortOrder"),
     isVisible: formData.get("isVisible") === "on"
   });

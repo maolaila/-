@@ -30,7 +30,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
     <div className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">商品列表</h1>
-        <p className="mt-1 text-sm text-muted">仅展示已上架商品，支持分类、搜索、排序和库存筛选。</p>
+        <p className="mt-1 text-sm text-muted">按分类、关键词和库存快速筛选可购买商品。</p>
       </div>
 
       <form className="mb-6 grid gap-3 rounded-md border border-line bg-white p-4 md:grid-cols-[1fr_180px_160px_160px_auto]">
@@ -68,7 +68,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
       </form>
 
       {products.length === 0 ? (
-        <EmptyState title="没有找到商品" description="请更换分类或搜索词。" />
+        <EmptyState title="没有找到商品" description="请更换分类或搜索词。" actionHref="/products" actionLabel="查看全部商品" />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {products.map((product) => (

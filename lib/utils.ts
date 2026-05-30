@@ -14,6 +14,15 @@ export function formatMoney(value: string | number, currency = "CNY") {
   }).format(Number.isFinite(numeric) ? numeric : 0);
 }
 
+export function formatPriceRange(min: string | number, max: string | number, currency = "CNY") {
+  const minValue = Number(min);
+  const maxValue = Number(max);
+  if (!Number.isFinite(minValue) || !Number.isFinite(maxValue) || minValue === maxValue) {
+    return formatMoney(min, currency);
+  }
+  return `${formatMoney(minValue, currency)} - ${formatMoney(maxValue, currency)}`;
+}
+
 export function formatDateTime(value: string | Date) {
   return new Intl.DateTimeFormat("zh-CN", {
     year: "numeric",

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { AddToCartForm } from "@/components/store/add-to-cart-form";
+import { ProductGallery } from "@/components/store/product-gallery";
 import { sanitizeRichText } from "@/lib/sanitize";
 import { formatMoney } from "@/lib/utils";
 import { getProductBySlug } from "@/server/services/catalog";
@@ -15,7 +16,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   if (!product) {
     return {};
   }
-  const ogImageUrl = product.images[0]?.url ?? product.mainImageUrl;
+  const ogImageUrl = product.mainImageUrl;
   return {
     title: product.seoTitle || product.name,
     description: product.seoDescription || product.summary || product.name,
@@ -34,25 +35,16 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
     notFound();
   }
 
-  const images = product.images.length > 0 ? product.images : [{ id: "thumbnail", url: product.mainImageUrl, storagePath: null, sortOrder: 0 }];
-  const primaryImageUrl = images[0]?.url ?? product.mainImageUrl;
+  const images = [
+    { id: "thumbnail", url: product.mainImageUrl },
+    ...product.images.map((image) => ({ id: image.id, url: image.url }))
+  ];
   const totalStock = product.variants.reduce((sum, variant) => sum + variant.stock, 0);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
       <div className="grid gap-6 lg:grid-cols-[1fr_0.85fr] lg:gap-8">
-        <section className="grid gap-4">
-          <div className="aspect-[4/3] overflow-hidden rounded-md bg-slate-100">
-            <img alt={product.name} className="h-full w-full object-cover" src={primaryImageUrl} />
-          </div>
-          <div className="grid grid-cols-4 gap-2 sm:gap-3">
-            {images.map((image) => (
-              <div className="aspect-square overflow-hidden rounded-md border border-line bg-white" key={image.id}>
-                <img alt={product.name} className="h-full w-full object-cover" src={image.url} />
-              </div>
-            ))}
-          </div>
-        </section>
+        <ProductGallery images={images} productName={product.name} />
 
         <section className="rounded-md border border-line bg-white p-4 sm:p-6">
           <p className="text-sm text-muted">{product.categoryName}</p>
