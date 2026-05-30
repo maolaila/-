@@ -4,6 +4,8 @@ import { requireApiAdmin } from "@/server/auth";
 import { jsonError, jsonOk } from "@/server/http";
 import { uploadProductImage } from "@/server/services/storage";
 
+export const runtime = "nodejs";
+
 export async function POST(request: NextRequest) {
   try {
     await requireApiAdmin();

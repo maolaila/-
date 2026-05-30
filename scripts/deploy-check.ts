@@ -174,7 +174,7 @@ async function validateSupabaseStorage() {
 
   const isPublic = typeof data === "object" && data !== null && "public" in data && data.public === true;
   if (!isPublic) {
-    warn("SUPABASE_STORAGE_BUCKET", "bucket exists but is not marked public; product images may not render for shoppers.");
+    fail("SUPABASE_STORAGE_BUCKET", "bucket exists but is not marked public; product images will not render for shoppers.");
   }
 }
 

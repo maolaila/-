@@ -62,8 +62,16 @@ STORAGE_DRIVER=supabase
 Storage：
 
 - bucket 名称默认 `product-images`。
-- bucket 需要设为 public，否则商品图片上传成功后前台可能无法访问。
+- bucket 必须设为 public，否则商品图片上传成功后前台无法直接访问。
 - `SUPABASE_SERVICE_ROLE_KEY` 必须使用 service role key，不要使用 anon key。
+- 商品图上传后不会保存原图，会在服务端转成两份 WebP：
+  - `products/{year}/{uuid}/main.webp`：最大宽度 1200px，quality 80，用于商品主图和详情图。
+  - `products/{year}/{uuid}/thumb.webp`：最大宽度 400px，quality 75，用于后台缩略图预览。
+- 这两份文件由应用通过 `sharp` 生成，不使用 Supabase Image Transformations，因此不会产生 Supabase 图片转换费用。
+- 当前 Supabase 文档显示：Free 组织包含 1GB file storage，Pro/Team 包含 100GB file storage，Pro/Team 超额约 $0.0213/GB/月；Free Storage 带宽额度约为 10GB（cached + uncached）。价格和额度可能调整，正式上线前以 Supabase 官方 pricing/docs 为准。
+- 粗略估算 1 万张商品图的存储量：`10000 × (main.webp + thumb.webp 平均大小)`。如果两份 WebP 合计平均 100KB，约 1GB；平均 200KB，约 2GB；平均 500KB，约 5GB。
+- 正式生产建议使用 Supabase Pro。Free 适合测试或低流量验证，不建议作为长期生产图片存储方案。
+- 参考文档：<https://supabase.com/docs/guides/storage/pricing>、<https://supabase.com/docs/guides/storage/serving/bandwidth>。
 
 ## 常用命令
 
@@ -149,4 +157,3 @@ ALLOW_INSECURE_SEED_DEFAULTS=true
 - `SESSION_SECRET` 至少 32 位。
 - `PASSWORD_PEPPER` 至少 16 位。
 - `pnpm deploy:verify` 通过。
-
