@@ -15,13 +15,14 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   if (!product) {
     return {};
   }
+  const ogImageUrl = product.images[0]?.url ?? product.mainImageUrl;
   return {
     title: product.seoTitle || product.name,
     description: product.seoDescription || product.summary || product.name,
     openGraph: {
       title: product.seoTitle || product.name,
       description: product.seoDescription || product.summary || product.name,
-      images: [product.mainImageUrl]
+      images: [ogImageUrl]
     }
   };
 }
@@ -33,7 +34,8 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
     notFound();
   }
 
-  const images = product.images.length > 0 ? product.images : [{ id: "main", url: product.mainImageUrl, storagePath: null, sortOrder: 0 }];
+  const images = product.images.length > 0 ? product.images : [{ id: "thumbnail", url: product.mainImageUrl, storagePath: null, sortOrder: 0 }];
+  const primaryImageUrl = images[0]?.url ?? product.mainImageUrl;
   const totalStock = product.variants.reduce((sum, variant) => sum + variant.stock, 0);
 
   return (
@@ -41,10 +43,10 @@ export default async function ProductDetailPage({ params }: { params: Params }) 
       <div className="grid gap-6 lg:grid-cols-[1fr_0.85fr] lg:gap-8">
         <section className="grid gap-4">
           <div className="aspect-[4/3] overflow-hidden rounded-md bg-slate-100">
-            <img alt={product.name} className="h-full w-full object-cover" src={product.mainImageUrl} />
+            <img alt={product.name} className="h-full w-full object-cover" src={primaryImageUrl} />
           </div>
           <div className="grid grid-cols-4 gap-2 sm:gap-3">
-            {images.slice(0, 4).map((image) => (
+            {images.map((image) => (
               <div className="aspect-square overflow-hidden rounded-md border border-line bg-white" key={image.id}>
                 <img alt={product.name} className="h-full w-full object-cover" src={image.url} />
               </div>

@@ -111,9 +111,9 @@ export async function uploadProductImage(file: File) {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
-  const storageBasePath = `products/${year}/${month}/${assetId}`;
-  const mainStoragePath = `${storageBasePath}/main.webp`;
-  const thumbStoragePath = `${storageBasePath}/thumb.webp`;
+  const storageBasePath = `products/${year}/${month}`;
+  const detailStoragePath = `${storageBasePath}/${assetId}.webp`;
+  const thumbStoragePath = `${storageBasePath}/${assetId}-thumb.webp`;
 
   if (storageDriver === "r2") {
     const client = getR2Client();
@@ -123,7 +123,7 @@ export async function uploadProductImage(file: File) {
     await client.send(
       new PutObjectCommand({
         Bucket: bucket,
-        Key: mainStoragePath,
+        Key: detailStoragePath,
         Body: mainBuffer,
         ContentType: "image/webp",
         CacheControl: imageCacheControl
@@ -141,14 +141,16 @@ export async function uploadProductImage(file: File) {
         })
       );
     } catch (error) {
-      await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: mainStoragePath })).catch(() => undefined);
+      await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: detailStoragePath })).catch(() => undefined);
       throw error;
     }
 
     return {
-      url: buildPublicUrl(publicBaseUrl, mainStoragePath),
+      url: buildPublicUrl(publicBaseUrl, detailStoragePath),
+      detailUrl: buildPublicUrl(publicBaseUrl, detailStoragePath),
       thumbUrl: buildPublicUrl(publicBaseUrl, thumbStoragePath),
-      storagePath: mainStoragePath,
+      storagePath: detailStoragePath,
+      detailStoragePath,
       thumbStoragePath,
       contentType: "image/webp",
       originalFormat: ext,
@@ -169,7 +171,7 @@ export async function uploadProductImage(file: File) {
     const client = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false }
     });
-    const { error: mainError } = await client.storage.from(bucket).upload(mainStoragePath, mainBuffer, {
+    const { error: mainError } = await client.storage.from(bucket).upload(detailStoragePath, mainBuffer, {
       contentType: "image/webp",
       upsert: false
     });
@@ -182,16 +184,18 @@ export async function uploadProductImage(file: File) {
       upsert: false
     });
     if (thumbError) {
-      await client.storage.from(bucket).remove([mainStoragePath]).catch(() => undefined);
+      await client.storage.from(bucket).remove([detailStoragePath]).catch(() => undefined);
       throw new Error(thumbError.message);
     }
 
-    const { data: mainData } = client.storage.from(bucket).getPublicUrl(mainStoragePath);
+    const { data: mainData } = client.storage.from(bucket).getPublicUrl(detailStoragePath);
     const { data: thumbData } = client.storage.from(bucket).getPublicUrl(thumbStoragePath);
     return {
       url: mainData.publicUrl,
+      detailUrl: mainData.publicUrl,
       thumbUrl: thumbData.publicUrl,
-      storagePath: mainStoragePath,
+      storagePath: detailStoragePath,
+      detailStoragePath,
       thumbStoragePath,
       contentType: "image/webp",
       originalFormat: ext,
@@ -201,19 +205,22 @@ export async function uploadProductImage(file: File) {
     };
   }
 
-  const targetDir = path.join(process.cwd(), "public", "uploads", "products", String(year), month, assetId);
+  const targetDir = path.join(process.cwd(), "public", "uploads", "products", String(year), month);
   await fs.mkdir(targetDir, { recursive: true });
-  const mainTargetPath = path.join(targetDir, "main.webp");
-  const thumbTargetPath = path.join(targetDir, "thumb.webp");
+  const detailTargetPath = path.join(targetDir, `${assetId}.webp`);
+  const thumbTargetPath = path.join(targetDir, `${assetId}-thumb.webp`);
   await Promise.all([
-    fs.writeFile(mainTargetPath, mainBuffer),
+    fs.writeFile(detailTargetPath, mainBuffer),
     fs.writeFile(thumbTargetPath, thumbBuffer)
   ]);
-  const publicBasePath = `/uploads/products/${year}/${month}/${assetId}`;
+  const publicBasePath = `/uploads/products/${year}/${month}`;
+  const detailUrl = `${publicBasePath}/${assetId}.webp`;
   return {
-    url: `${publicBasePath}/main.webp`,
-    thumbUrl: `${publicBasePath}/thumb.webp`,
-    storagePath: mainTargetPath,
+    url: detailUrl,
+    detailUrl,
+    thumbUrl: `${publicBasePath}/${assetId}-thumb.webp`,
+    storagePath: detailTargetPath,
+    detailStoragePath: detailTargetPath,
     thumbStoragePath: thumbTargetPath,
     contentType: "image/webp",
     originalFormat: ext,

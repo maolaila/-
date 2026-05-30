@@ -83,9 +83,10 @@ test("admin can create a category and product that storefront search can find", 
   await page.waitForTimeout(300);
   await fs.writeFile(uploadFile, Buffer.from(pngFixtureBase64, "base64"));
   await page.locator('input[type="file"]').setInputFiles(uploadFile);
-  await expect(page.getByText(/已生成 main\.webp 和 thumb\.webp/)).toBeVisible();
-  await expect(page.locator('img[src$="/thumb.webp"]').first()).toBeVisible();
-  await expect(page.getByLabel("主图 URL")).toHaveValue(/\/main\.webp$/);
+  await expect(page.getByText(/已生成详情图和缩略图/)).toBeVisible();
+  await expect(page.locator('img[src$="-thumb.webp"]').first()).toBeVisible();
+  await expect(page.getByLabel("商品缩略图 URL")).toHaveValue(/-thumb\.webp$/);
+  await expect(page.getByLabel(/详情图片 URL/)).toHaveValue(/\/[^/]+\.webp$/);
   await page.getByLabel("商品名称").fill(productName);
   await page.getByLabel("Slug").fill(productSlug);
   await page.getByLabel("分类").selectOption({ label: categoryName });

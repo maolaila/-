@@ -46,8 +46,8 @@ describe("validators", () => {
       slug: "local-upload-product",
       categoryId: "00000000-0000-4000-8000-000000000001",
       status: "active",
-      mainImageUrl: "/uploads/products/2026/example/main.webp",
-      images: ["/uploads/products/2026/example/main.webp"],
+      mainImageUrl: "/uploads/products/2026/05/example-thumb.webp",
+      images: Array.from({ length: 12 }, (_, index) => `/uploads/products/2026/05/detail-${index}.webp`),
       variants: [
         {
           optionValues: { 规格: "默认" },
@@ -58,6 +58,7 @@ describe("validators", () => {
       ]
     });
 
-    expect(parsed.mainImageUrl).toBe("/uploads/products/2026/example/main.webp");
+    expect(parsed.mainImageUrl).toBe("/uploads/products/2026/05/example-thumb.webp");
+    expect(parsed.images).toHaveLength(12);
   });
 });

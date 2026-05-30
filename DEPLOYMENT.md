@@ -69,12 +69,13 @@ R2_PUBLIC_BASE_URL=https://img.your-production-domain.com
 - `R2_PUBLIC_BASE_URL` 必须是绑定到 R2 bucket 的生产自定义域名，例如 `https://img.your-domain.com`。
 - `r2.dev` 只适合开发测试，生产不要使用。
 - `R2_ENDPOINT` 通常不需要设置，系统会用 `https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com`。
-- 商品图上传后不会保存原图，会在服务端转成两份 WebP：
-  - `products/{year}/{month}/{uuid}/main.webp`：最大宽度 1200px，quality 80，用于商品主图和详情图。
-  - `products/{year}/{month}/{uuid}/thumb.webp`：最大宽度 400px，quality 75，用于后台缩略图预览。
+- 商品图上传后不会保存原图，会在服务端转成两份唯一命名的 WebP：
+  - `products/{year}/{month}/{uuid}.webp`：最大宽度 1200px，quality 80，用于商品详情图。
+  - `products/{year}/{month}/{uuid}-thumb.webp`：最大宽度 400px，quality 75，用于商品缩略图。
+- 每个商品只有一个缩略图 URL，保存在商品表；详情图 URL 保存在 `product_images`，数量不做业务上限限制。
 - 这两份文件由应用通过 `sharp` 生成，不使用 Cloudflare 图片转换服务。
 - 当前 Cloudflare 官方文档显示：R2 Standard 免费额度包含 10GB-month/月、Class A 100 万次/月、Class B 1000 万次/月，互联网出站流量免费。价格和额度可能调整，正式上线前以 Cloudflare 官方 pricing/docs 为准。
-- 2 万张是上限时，按 `main.webp + thumb.webp` 合计平均大小估算容量：平均 300KB 约 6GB，平均 500KB 约 10GB，平均 1MB 约 20GB。
+- 2 万张是上限时，按 `详情图 + 缩略图` 合计平均大小估算容量：平均 300KB 约 6GB，平均 500KB 约 10GB，平均 1MB 约 20GB。
 - 参考文档：<https://developers.cloudflare.com/r2/pricing/>、<https://developers.cloudflare.com/r2/data-access/public-buckets/>。
 
 ## Supabase Storage 备选

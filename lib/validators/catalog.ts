@@ -46,7 +46,7 @@ export const productSchema = z.object({
   seoTitle: z.string().trim().max(70, "SEO 标题最多 70 个字符").optional().nullable(),
   seoDescription: z.string().trim().max(160, "SEO 描述最多 160 个字符").optional().nullable(),
   mainImageUrl: productImageUrlSchema,
-  images: z.array(productImageUrlSchema).max(8).default([]),
+  images: z.array(productImageUrlSchema).default([]),
   variants: z.array(variantInputSchema).min(1, "至少需要一个规格")
 });
 

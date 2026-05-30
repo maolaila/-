@@ -85,6 +85,10 @@ function publicOrderBy(sort: string | undefined) {
   }
 }
 
+function uniqueDetailImageUrls(thumbnailUrl: string, images: string[]) {
+  return Array.from(new Set(images.filter((url) => url !== thumbnailUrl)));
+}
+
 export async function getVisibleCategories() {
   const sql = getSql();
   return sql<CategoryRow[]>`
@@ -364,7 +368,7 @@ export async function createProduct(input: unknown) {
       returning id
     `;
 
-    const imageUrls = [parsed.mainImageUrl, ...parsed.images.filter((url) => url !== parsed.mainImageUrl)].slice(0, 8);
+    const imageUrls = uniqueDetailImageUrls(parsed.mainImageUrl, parsed.images);
     for (const [index, url] of imageUrls.entries()) {
       await tx`
         insert into product_images (product_id, url, sort_order)
@@ -412,7 +416,7 @@ export async function updateProduct(id: string, input: unknown) {
     `;
 
     await tx`delete from product_images where product_id = ${id}`;
-    const imageUrls = [parsed.mainImageUrl, ...parsed.images.filter((url) => url !== parsed.mainImageUrl)].slice(0, 8);
+    const imageUrls = uniqueDetailImageUrls(parsed.mainImageUrl, parsed.images);
     for (const [index, url] of imageUrls.entries()) {
       await tx`
         insert into product_images (product_id, url, sort_order)

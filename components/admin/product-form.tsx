@@ -34,7 +34,7 @@ export function ProductForm({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadInfo, setUploadInfo] = useState<string | null>(null);
   const [uploadedThumbs, setUploadedThumbs] = useState<Record<string, string>>({});
-  const imageUrls = useMemo(() => parseImageUrls(images, mainImageUrl), [images, mainImageUrl]);
+  const detailImageUrls = useMemo(() => parseImageUrls(images), [images]);
   const parsedPreview = useMemo(() => {
     try {
       const parsed = JSON.parse(variantsJson) as ProductVariant[];
@@ -60,6 +60,7 @@ export function ProductForm({
       });
       const body = (await response.json()) as {
         url?: string;
+        detailUrl?: string;
         thumbUrl?: string;
         error?: string;
         contentType?: string;
@@ -70,16 +71,16 @@ export function ProductForm({
       if (!response.ok || !body.url) {
         throw new Error(body.error ?? "上传失败");
       }
-      const uploadedUrl = body.url;
-      setMainImageUrl((current) => current || uploadedUrl);
-      setImages((current) => [current, uploadedUrl].filter(Boolean).join("\n"));
+      const uploadedUrl = body.detailUrl ?? body.url;
       const uploadedThumbUrl = body.thumbUrl;
+      setMainImageUrl((current) => current || uploadedThumbUrl || uploadedUrl);
+      setImages((current) => appendDetailImageUrl(current, uploadedUrl));
       if (uploadedThumbUrl) {
         setUploadedThumbs((current) => ({ ...current, [uploadedUrl]: uploadedThumbUrl }));
       }
       setUploadInfo(
         body.contentType === "image/webp"
-          ? `已生成 main.webp 和 thumb.webp${body.originalBytes && body.storedBytes ? `：原图 ${formatBytes(body.originalBytes)}，main ${formatBytes(body.storedBytes)}${body.thumbBytes ? `，thumb ${formatBytes(body.thumbBytes)}` : ""}` : ""}`
+          ? `已生成详情图和缩略图${body.originalBytes && body.storedBytes ? `：原图 ${formatBytes(body.originalBytes)}，详情图 ${formatBytes(body.storedBytes)}${body.thumbBytes ? `，缩略图 ${formatBytes(body.thumbBytes)}` : ""}` : ""}`
           : "上传成功"
       );
     } catch (error) {
@@ -127,7 +128,7 @@ export function ProductForm({
         <Textarea name="summary" defaultValue={product?.summary ?? ""} maxLength={300} />
       </Field>
       <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
-        <Field label="主图 URL">
+        <Field label="商品缩略图 URL">
           <Input name="mainImageUrl" onChange={(event) => setMainImageUrl(event.target.value)} required value={mainImageUrl} />
         </Field>
         <label className="grid gap-2 text-sm font-medium">
@@ -147,24 +148,51 @@ export function ProductForm({
           {uploadInfo ? <span className="text-xs font-normal text-emerald-700">{uploadInfo}</span> : null}
         </label>
       </div>
-      <Field label="轮播图片 URL">
+      {mainImageUrl ? (
+        <div className="grid gap-2">
+          <div className="text-sm font-medium text-ink">当前商品缩略图</div>
+          <div className="w-28 overflow-hidden rounded-md border border-line bg-white">
+            <div className="aspect-square bg-slate-100">
+              <img alt="商品缩略图" className="h-full w-full object-cover" src={mainImageUrl} />
+            </div>
+          </div>
+        </div>
+      ) : null}
+      <Field label="详情图片 URL（每行一个，不限数量）">
         <Textarea name="images" onChange={(event) => setImages(event.target.value)} value={images} />
       </Field>
-      {imageUrls.length > 0 ? (
+      {detailImageUrls.length > 0 ? (
         <div className="grid gap-2">
-          <div className="text-sm font-medium text-ink">图片缩略图</div>
+          <div className="text-sm font-medium text-ink">详情图片预览</div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-            {imageUrls.slice(0, 8).map((url, index) => (
-              <figure className="overflow-hidden rounded-md border border-line bg-white" key={`${url}-${index}`}>
-                <div className="aspect-square bg-slate-100">
-                  <img alt={`商品图 ${index + 1}`} className="h-full w-full object-cover" src={uploadedThumbs[url] ?? toThumbnailUrl(url)} />
-                </div>
-                <figcaption className="truncate px-2 py-1 text-xs text-muted">
-                  {url.endsWith("/main.webp") ? "main.webp" : url.endsWith(".webp") ? "WebP" : "图片"} {index === 0 ? "主图" : index + 1}
-                </figcaption>
-              </figure>
-            ))}
+            {detailImageUrls.map((url, index) => {
+              const generatedThumbUrl = uploadedThumbs[url] ?? toGeneratedThumbnailUrl(url);
+              return (
+                <figure className="overflow-hidden rounded-md border border-line bg-white" key={`${url}-${index}`}>
+                  <div className="aspect-square bg-slate-100">
+                    <img alt={`详情图 ${index + 1}`} className="h-full w-full object-cover" src={generatedThumbUrl ?? url} />
+                  </div>
+                  <figcaption className="grid gap-1 px-2 py-1 text-xs text-muted">
+                    <span className="truncate">详情图 {index + 1}</span>
+                    {generatedThumbUrl ? (
+                      <button
+                        className="text-left text-brand hover:underline"
+                        onClick={() => setMainImageUrl(generatedThumbUrl)}
+                        type="button"
+                      >
+                        设为商品缩略图
+                      </button>
+                    ) : null}
+                  </figcaption>
+                </figure>
+              );
+            })}
           </div>
+        </div>
+      ) : null}
+      {detailImageUrls.length > 0 ? (
+        <div className="rounded-md border border-line bg-white p-3 text-xs text-muted">
+          详情图片数量：{detailImageUrls.length}。商品缩略图单独保存，详情图片不限制数量。
         </div>
       ) : null}
       <div className="grid gap-4 lg:grid-cols-2">
@@ -202,14 +230,19 @@ export function ProductForm({
   );
 }
 
-function parseImageUrls(images: string, mainImageUrl: string) {
+function parseImageUrls(images: string) {
   return Array.from(
     new Set(
-      [mainImageUrl, ...images.split(/\r?\n/)]
+      images
+        .split(/\r?\n/)
         .map((url) => url.trim())
         .filter(Boolean)
     )
   );
+}
+
+function appendDetailImageUrl(images: string, url: string) {
+  return Array.from(new Set([...parseImageUrls(images), url])).join("\n");
 }
 
 function formatBytes(bytes: number) {
@@ -222,8 +255,33 @@ function formatBytes(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(2)}MB`;
 }
 
-function toThumbnailUrl(url: string) {
-  return url.endsWith("/main.webp") ? url.replace(/\/main\.webp$/, "/thumb.webp") : url;
+function toGeneratedThumbnailUrl(url: string) {
+  if (url.endsWith("/main.webp")) {
+    return url.replace(/\/main\.webp$/, "/thumb.webp");
+  }
+  if (url.endsWith("-thumb.webp")) {
+    return url;
+  }
+
+  const pathname = getPathname(url);
+  if (!pathname) {
+    return null;
+  }
+  if (/^\/(?:uploads\/)?products\/\d{4}\/\d{2}\/[^/]+\.webp$/.test(pathname)) {
+    return url.replace(/\.webp$/, "-thumb.webp");
+  }
+  return null;
+}
+
+function getPathname(url: string) {
+  if (url.startsWith("/")) {
+    return url;
+  }
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return null;
+  }
 }
 
 function toEditableVariants(variants: ProductVariant[] | undefined) {
