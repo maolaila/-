@@ -1,5 +1,21 @@
 import { z } from "zod";
 
+const productImageUrlSchema = z
+  .string()
+  .trim()
+  .refine((value) => isAbsoluteUrl(value) || value.startsWith("/uploads/products/"), {
+    message: "图片必须是有效 URL 或本地上传路径"
+  });
+
+function isAbsoluteUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export const categorySchema = z.object({
   name: z.string().trim().min(1, "分类名称不能为空").max(50, "分类名称最多 50 个字符"),
   slug: z.string().trim().min(1, "Slug 不能为空").max(80, "Slug 最多 80 个字符"),
@@ -29,8 +45,8 @@ export const productSchema = z.object({
   tags: z.array(z.string().trim().min(1)).max(12).default([]),
   seoTitle: z.string().trim().max(70, "SEO 标题最多 70 个字符").optional().nullable(),
   seoDescription: z.string().trim().max(160, "SEO 描述最多 160 个字符").optional().nullable(),
-  mainImageUrl: z.string().trim().url("主图必须是有效 URL"),
-  images: z.array(z.string().trim().url()).max(8).default([]),
+  mainImageUrl: productImageUrlSchema,
+  images: z.array(productImageUrlSchema).max(8).default([]),
   variants: z.array(variantInputSchema).min(1, "至少需要一个规格")
 });
 

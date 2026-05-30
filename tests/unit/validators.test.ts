@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { registerSchema } from "@/lib/validators/auth";
+import { productSchema } from "@/lib/validators/catalog";
 import { checkoutSchema } from "@/lib/validators/order";
 import { normalizeUsername } from "@/lib/utils";
 
@@ -37,5 +38,26 @@ describe("validators", () => {
       receiverContact: "13800000000",
       receiverAddress: "地址"
     })).toThrow();
+  });
+
+  it("accepts local uploaded product image paths", () => {
+    const parsed = productSchema.parse({
+      name: "本地上传商品",
+      slug: "local-upload-product",
+      categoryId: "00000000-0000-4000-8000-000000000001",
+      status: "active",
+      mainImageUrl: "/uploads/products/2026/example/main.webp",
+      images: ["/uploads/products/2026/example/main.webp"],
+      variants: [
+        {
+          optionValues: { 规格: "默认" },
+          price: 12.5,
+          stock: 1,
+          status: "active"
+        }
+      ]
+    });
+
+    expect(parsed.mainImageUrl).toBe("/uploads/products/2026/example/main.webp");
   });
 });

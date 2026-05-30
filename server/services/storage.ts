@@ -5,6 +5,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 
 import { createClient } from "@supabase/supabase-js";
+import sharp from "sharp";
 
 const maxBytes = 5 * 1024 * 1024;
 
@@ -30,6 +31,21 @@ function detectImage(buffer: Buffer): "jpg" | "png" | "webp" | null {
   return null;
 }
 
+async function toWebp(buffer: Buffer, options: { maxWidth: number; quality: number }) {
+  try {
+    return await sharp(buffer, { failOn: "warning" })
+      .rotate()
+      .resize({
+        width: options.maxWidth,
+        withoutEnlargement: true
+      })
+      .webp({ quality: options.quality, effort: 4 })
+      .toBuffer();
+  } catch {
+    throw new Error("图片转换 WebP 失败，请确认文件不是损坏图片");
+  }
+}
+
 export async function uploadProductImage(file: File) {
   if (process.env.NODE_ENV === "production" && process.env.STORAGE_DRIVER !== "supabase") {
     throw new Error("生产环境必须配置 Supabase Storage 上传");
@@ -45,8 +61,15 @@ export async function uploadProductImage(file: File) {
     throw new Error("仅支持 jpg、jpeg、png、webp 图片");
   }
 
-  const filename = `${crypto.randomUUID()}.${ext}`;
-  const storagePath = `products/${new Date().getFullYear()}/${filename}`;
+  const [mainBuffer, thumbBuffer] = await Promise.all([
+    toWebp(buffer, { maxWidth: 1200, quality: 80 }),
+    toWebp(buffer, { maxWidth: 400, quality: 75 })
+  ]);
+  const assetId = crypto.randomUUID();
+  const year = new Date().getFullYear();
+  const storageBasePath = `products/${year}/${assetId}`;
+  const mainStoragePath = `${storageBasePath}/main.webp`;
+  const thumbStoragePath = `${storageBasePath}/thumb.webp`;
 
   if (process.env.STORAGE_DRIVER === "supabase") {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -59,21 +82,56 @@ export async function uploadProductImage(file: File) {
     const client = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false }
     });
-    const { error } = await client.storage.from(bucket).upload(storagePath, buffer, {
-      contentType: ext === "jpg" ? "image/jpeg" : `image/${ext}`,
+    const { error: mainError } = await client.storage.from(bucket).upload(mainStoragePath, mainBuffer, {
+      contentType: "image/webp",
       upsert: false
     });
-    if (error) {
-      throw new Error(error.message);
+    if (mainError) {
+      throw new Error(mainError.message);
     }
 
-    const { data } = client.storage.from(bucket).getPublicUrl(storagePath);
-    return { url: data.publicUrl, storagePath };
+    const { error: thumbError } = await client.storage.from(bucket).upload(thumbStoragePath, thumbBuffer, {
+      contentType: "image/webp",
+      upsert: false
+    });
+    if (thumbError) {
+      await client.storage.from(bucket).remove([mainStoragePath]).catch(() => undefined);
+      throw new Error(thumbError.message);
+    }
+
+    const { data: mainData } = client.storage.from(bucket).getPublicUrl(mainStoragePath);
+    const { data: thumbData } = client.storage.from(bucket).getPublicUrl(thumbStoragePath);
+    return {
+      url: mainData.publicUrl,
+      thumbUrl: thumbData.publicUrl,
+      storagePath: mainStoragePath,
+      thumbStoragePath,
+      contentType: "image/webp",
+      originalFormat: ext,
+      originalBytes: buffer.length,
+      storedBytes: mainBuffer.length,
+      thumbBytes: thumbBuffer.length
+    };
   }
 
-  const targetDir = path.join(process.cwd(), "public", "uploads", "products");
+  const targetDir = path.join(process.cwd(), "public", "uploads", "products", String(year), assetId);
   await fs.mkdir(targetDir, { recursive: true });
-  const targetPath = path.join(targetDir, filename);
-  await fs.writeFile(targetPath, buffer);
-  return { url: `/uploads/products/${filename}`, storagePath: targetPath };
+  const mainTargetPath = path.join(targetDir, "main.webp");
+  const thumbTargetPath = path.join(targetDir, "thumb.webp");
+  await Promise.all([
+    fs.writeFile(mainTargetPath, mainBuffer),
+    fs.writeFile(thumbTargetPath, thumbBuffer)
+  ]);
+  const publicBasePath = `/uploads/products/${year}/${assetId}`;
+  return {
+    url: `${publicBasePath}/main.webp`,
+    thumbUrl: `${publicBasePath}/thumb.webp`,
+    storagePath: mainTargetPath,
+    thumbStoragePath: thumbTargetPath,
+    contentType: "image/webp",
+    originalFormat: ext,
+    originalBytes: buffer.length,
+    storedBytes: mainBuffer.length,
+    thumbBytes: thumbBuffer.length
+  };
 }

@@ -32,6 +32,9 @@ export function ProductForm({
   const [variantsJson, setVariantsJson] = useState(() => JSON.stringify(toEditableVariants(product?.variants), null, 2));
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadInfo, setUploadInfo] = useState<string | null>(null);
+  const [uploadedThumbs, setUploadedThumbs] = useState<Record<string, string>>({});
+  const imageUrls = useMemo(() => parseImageUrls(images, mainImageUrl), [images, mainImageUrl]);
   const parsedPreview = useMemo(() => {
     try {
       const parsed = JSON.parse(variantsJson) as ProductVariant[];
@@ -47,6 +50,7 @@ export function ProductForm({
     }
     setUploading(true);
     setUploadError(null);
+    setUploadInfo(null);
     try {
       const data = new FormData();
       data.set("file", file);
@@ -54,13 +58,30 @@ export function ProductForm({
         method: "POST",
         body: data
       });
-      const body = (await response.json()) as { url?: string; error?: string };
+      const body = (await response.json()) as {
+        url?: string;
+        thumbUrl?: string;
+        error?: string;
+        contentType?: string;
+        originalBytes?: number;
+        storedBytes?: number;
+        thumbBytes?: number;
+      };
       if (!response.ok || !body.url) {
         throw new Error(body.error ?? "上传失败");
       }
       const uploadedUrl = body.url;
       setMainImageUrl((current) => current || uploadedUrl);
       setImages((current) => [current, uploadedUrl].filter(Boolean).join("\n"));
+      const uploadedThumbUrl = body.thumbUrl;
+      if (uploadedThumbUrl) {
+        setUploadedThumbs((current) => ({ ...current, [uploadedUrl]: uploadedThumbUrl }));
+      }
+      setUploadInfo(
+        body.contentType === "image/webp"
+          ? `已生成 main.webp 和 thumb.webp${body.originalBytes && body.storedBytes ? `：原图 ${formatBytes(body.originalBytes)}，main ${formatBytes(body.storedBytes)}${body.thumbBytes ? `，thumb ${formatBytes(body.thumbBytes)}` : ""}` : ""}`
+          : "上传成功"
+      );
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : "上传失败");
     } finally {
@@ -123,11 +144,29 @@ export function ProductForm({
             />
           </span>
           {uploadError ? <span className="text-xs font-normal text-red-600">{uploadError}</span> : null}
+          {uploadInfo ? <span className="text-xs font-normal text-emerald-700">{uploadInfo}</span> : null}
         </label>
       </div>
       <Field label="轮播图片 URL">
         <Textarea name="images" onChange={(event) => setImages(event.target.value)} value={images} />
       </Field>
+      {imageUrls.length > 0 ? (
+        <div className="grid gap-2">
+          <div className="text-sm font-medium text-ink">图片缩略图</div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+            {imageUrls.slice(0, 8).map((url, index) => (
+              <figure className="overflow-hidden rounded-md border border-line bg-white" key={`${url}-${index}`}>
+                <div className="aspect-square bg-slate-100">
+                  <img alt={`商品图 ${index + 1}`} className="h-full w-full object-cover" src={uploadedThumbs[url] ?? toThumbnailUrl(url)} />
+                </div>
+                <figcaption className="truncate px-2 py-1 text-xs text-muted">
+                  {url.endsWith("/main.webp") ? "main.webp" : url.endsWith(".webp") ? "WebP" : "图片"} {index === 0 ? "主图" : index + 1}
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className="grid gap-4 lg:grid-cols-2">
         <Field label="SEO 标题">
           <Input name="seoTitle" defaultValue={product?.seoTitle ?? ""} maxLength={70} />
@@ -161,6 +200,30 @@ export function ProductForm({
       </div>
     </form>
   );
+}
+
+function parseImageUrls(images: string, mainImageUrl: string) {
+  return Array.from(
+    new Set(
+      [mainImageUrl, ...images.split(/\r?\n/)]
+        .map((url) => url.trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) {
+    return `${bytes}B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)}KB`;
+  }
+  return `${(bytes / 1024 / 1024).toFixed(2)}MB`;
+}
+
+function toThumbnailUrl(url: string) {
+  return url.endsWith("/main.webp") ? url.replace(/\/main\.webp$/, "/thumb.webp") : url;
 }
 
 function toEditableVariants(variants: ProductVariant[] | undefined) {

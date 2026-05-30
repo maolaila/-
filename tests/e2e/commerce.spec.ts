@@ -1,4 +1,9 @@
+import fs from "node:fs/promises";
+
 import { expect, test, type Page } from "@playwright/test";
+
+const pngFixtureBase64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=";
 
 async function loginAdmin(page: Page) {
   await page.goto("/admin/login");
@@ -59,6 +64,7 @@ test("admin can manage orders and customers", async ({ page }) => {
 
 test("admin can create a category and product that storefront search can find", async ({ page }) => {
   const suffix = Date.now();
+  const uploadFile = test.info().outputPath(`product-${suffix}.png`);
   const categoryName = `自动测试分类 ${suffix}`;
   const categorySlug = `auto-category-${suffix}`;
   const productName = `自动测试商品 ${suffix}`;
@@ -73,6 +79,13 @@ test("admin can create a category and product that storefront search can find", 
   await expect(page.locator(`input[value="${categoryName}"]`)).toBeVisible();
 
   await page.goto("/admin/products/new");
+  await expect(page.locator('input[type="file"]')).toBeEnabled();
+  await page.waitForTimeout(300);
+  await fs.writeFile(uploadFile, Buffer.from(pngFixtureBase64, "base64"));
+  await page.locator('input[type="file"]').setInputFiles(uploadFile);
+  await expect(page.getByText(/已生成 main\.webp 和 thumb\.webp/)).toBeVisible();
+  await expect(page.locator('img[src$="/thumb.webp"]').first()).toBeVisible();
+  await expect(page.getByLabel("主图 URL")).toHaveValue(/\/main\.webp$/);
   await page.getByLabel("商品名称").fill(productName);
   await page.getByLabel("Slug").fill(productSlug);
   await page.getByLabel("分类").selectOption({ label: categoryName });
@@ -80,7 +93,6 @@ test("admin can create a category and product that storefront search can find", 
   await page.getByLabel("商品 SKU").fill(`AUTO-${suffix}`);
   await page.getByLabel("标签").fill("现货, 自动测试");
   await page.getByLabel("商品简介").fill("自动化创建商品，验证后台保存和前台搜索。");
-  await page.getByLabel("主图 URL").fill("https://images.unsplash.com/photo-1526406915894-7bcd65f60845?auto=format&fit=crop&w=1200&q=80");
   await page.getByLabel("SEO 标题").fill(`${productName} - Light Commerce`);
   await page.getByLabel("SEO 描述").fill("自动化测试商品 SEO 描述");
   await page.getByLabel("商品详情").fill("<p>自动测试详情</p><script>alert('blocked')</script>");
